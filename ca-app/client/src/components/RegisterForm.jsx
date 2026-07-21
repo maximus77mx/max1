@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
 import { useI18n } from '../i18n';
+import { useAuth } from '../auth';
 
-function Field({ f, lang, value, error, onChange }) {
+function Field({ f, lang, value, error, onChange, readOnly }) {
   const label = lang === 'th' ? f.th : f.en;
   const { t } = useI18n();
   const common = {
     id: f.key,
     value: value ?? '',
+    disabled: readOnly,
     onChange: (e) => onChange(f.key, e.target.value),
   };
   return (
@@ -35,6 +37,8 @@ function Field({ f, lang, value, error, onChange }) {
 
 export default function RegisterForm({ meta, editId, onSaved, onCancel }) {
   const { lang, t } = useI18n();
+  const { can } = useAuth();
+  const readOnly = !!editId && !can('records.edit');
   const [form, setForm] = useState({});
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
@@ -90,10 +94,10 @@ export default function RegisterForm({ meta, editId, onSaved, onCancel }) {
   return (
     <form className="form-shell" onSubmit={submit}>
       <div className="form-head">
-        <h2>{editId ? t.editTitle : t.formTitle}</h2>
+        <h2>{readOnly ? t.view : editId ? t.editTitle : t.formTitle}</h2>
         <div style={{ display: 'flex', gap: 10 }}>
-          <button type="button" className="cta ghost" onClick={onCancel}>{t.cancel}</button>
-          <button type="submit" className="cta" disabled={saving}>{saving ? t.saving : t.save}</button>
+          <button type="button" className="cta ghost" onClick={onCancel}>{readOnly ? t.records : t.cancel}</button>
+          {!readOnly && <button type="submit" className="cta" disabled={saving}>{saving ? t.saving : t.save}</button>}
         </div>
       </div>
 
@@ -106,17 +110,19 @@ export default function RegisterForm({ meta, editId, onSaved, onCancel }) {
             <span className="legend">{lang === 'th' ? g.th : g.en}</span>
             <div className="grid-fields">
               {gfields.map((f) => (
-                <Field key={f.key} f={f} lang={lang} value={form[f.key]} error={errors[f.key]} onChange={change} />
+                <Field key={f.key} f={f} lang={lang} value={form[f.key]} error={errors[f.key]} onChange={change} readOnly={readOnly} />
               ))}
             </div>
           </fieldset>
         );
       })}
 
-      <div className="form-actions">
-        <button type="button" className="cta ghost" onClick={onCancel}>{t.cancel}</button>
-        <button type="submit" className="cta" disabled={saving}>{saving ? t.saving : t.save}</button>
-      </div>
+      {!readOnly && (
+        <div className="form-actions">
+          <button type="button" className="cta ghost" onClick={onCancel}>{t.cancel}</button>
+          <button type="submit" className="cta" disabled={saving}>{saving ? t.saving : t.save}</button>
+        </div>
+      )}
     </form>
   );
 }

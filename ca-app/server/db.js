@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import bcrypt from 'bcryptjs';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -45,6 +46,51 @@ if (count === 0) {
     insertMany(rows);
     console.log(`[db] Seeded ${rows.length} CA records`);
   }
+}
+
+// ---- Auth tables ----
+db.exec(`
+CREATE TABLE IF NOT EXISTS users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  email TEXT UNIQUE NOT NULL,
+  name TEXT,
+  password_hash TEXT,
+  role TEXT NOT NULL DEFAULT 'viewer',
+  status TEXT NOT NULL DEFAULT 'invited',   -- invited | active | disabled
+  created_at TEXT DEFAULT (datetime('now')),
+  last_login TEXT
+);
+CREATE TABLE IF NOT EXISTS invites (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  email TEXT NOT NULL,
+  role TEXT NOT NULL,
+  token TEXT UNIQUE NOT NULL,
+  invited_by TEXT,
+  created_at TEXT DEFAULT (datetime('now')),
+  expires_at TEXT,
+  accepted_at TEXT
+);
+`);
+
+// ---- Bootstrap the Super Admin from .env ----
+// SUPER_ADMIN_EMAIL is required; SUPER_ADMIN_PASSWORD sets/updates the password.
+const superEmail = (process.env.SUPER_ADMIN_EMAIL || '').trim().toLowerCase();
+if (superEmail) {
+  const existing = db.prepare('SELECT * FROM users WHERE email = ?').get(superEmail);
+  const pw = process.env.SUPER_ADMIN_PASSWORD;
+  if (!existing) {
+    const hash = pw ? bcrypt.hashSync(pw, 10) : null;
+    db.prepare(
+      `INSERT INTO users (email, name, password_hash, role, status) VALUES (?, ?, ?, 'super_admin', ?)`
+    ).run(superEmail, process.env.SUPER_ADMIN_NAME || 'Super Admin', hash, pw ? 'active' : 'invited');
+    console.log(`[db] Super admin created: ${superEmail}${pw ? '' : ' (no password set — set SUPER_ADMIN_PASSWORD in .env)'}`);
+  } else {
+    // Keep the env account as super_admin & active; refresh password if provided.
+    const hash = pw ? bcrypt.hashSync(pw, 10) : existing.password_hash;
+    db.prepare(`UPDATE users SET role = 'super_admin', status = 'active', password_hash = ? WHERE email = ?`).run(hash, superEmail);
+  }
+} else {
+  console.warn('[db] SUPER_ADMIN_EMAIL not set in .env — no super admin bootstrapped. See .env.example');
 }
 
 export default db;

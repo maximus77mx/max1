@@ -2,6 +2,10 @@ node_modules/
 dist/
 *.log
 
+# Secrets — never commit real .env (use server/.env.example as the template)
+.env
+server/.env
+
 # SQLite runtime files (DB is re-created & re-seeded from data/seed.json on first run)
 server/data/*.db
 server/data/*.db-shm

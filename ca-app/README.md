@@ -2,9 +2,10 @@
 
 Web App สำหรับ **ลงทะเบียนข้อมูล Corrective Action (CA)** พร้อม **Interactive Dashboard**
 รันบน Local Host ได้ทันที · React (Vite) + Express + SQLite · 2 ภาษา ไทย/อังกฤษ
+มีระบบ **Login + เชิญผ่านอีเมล + สิทธิ์ 4 ระดับ (Role/Level)**
 
 A full-stack web app to **register Corrective Action records** with an **interactive dashboard**.
-Runs entirely on localhost. Thai/English UI.
+Runs entirely on localhost. Thai/English UI. Includes **login, email invites, and 4-level RBAC**.
 
 ---
 
@@ -39,13 +40,17 @@ cd ca-app
 # 1) ติดตั้ง dependencies ทั้งหมด (root + server + client)
 npm run install:all
 
-# 2) รันแบบ dev (เปิด backend :4000 + frontend :5173 พร้อมกัน)
+# 2) ตั้งค่า Super Admin — คัดลอกไฟล์ตัวอย่างแล้วแก้อีเมล/รหัสผ่าน
+cp server/.env.example server/.env
+#   แก้ SUPER_ADMIN_EMAIL / SUPER_ADMIN_PASSWORD ในไฟล์ server/.env
+
+# 3) รันแบบ dev (เปิด backend :4000 + frontend :5173 พร้อมกัน)
 npm run dev
 ```
 
-จากนั้นเปิดเบราว์เซอร์ที่ **http://localhost:5173**
+จากนั้นเปิดเบราว์เซอร์ที่ **http://localhost:5173** แล้ว **login ด้วยบัญชี Super Admin** ที่ตั้งไว้ใน `.env`
 
-ครั้งแรกที่รัน ระบบจะสร้างฐานข้อมูล `server/data/ca.db` และใส่ข้อมูลตัวอย่าง 90 เคสให้อัตโนมัติ
+ครั้งแรกที่รัน ระบบจะสร้างฐานข้อมูล `server/data/ca.db`, seed ข้อมูลตัวอย่าง 90 เคส และสร้างบัญชี Super Admin จาก `.env` ให้อัตโนมัติ
 
 ### รันแบบ Production (พอร์ตเดียว)
 
@@ -55,6 +60,26 @@ npm start            # Express เสิร์ฟทั้ง API + เว็บ
 ```
 
 ---
+
+## ระบบสิทธิ์ / Login & Roles
+
+**Super Admin** ถูกกำหนดจากไฟล์ `server/.env` เท่านั้น (ไม่สามารถสร้าง/ลบผ่านหน้าเว็บได้)
+เมื่อ login แล้ว Super Admin / Admin สามารถ **เชิญผู้ใช้ใหม่ผ่านอีเมล** และ **กำหนด Level** ให้แต่ละคน
+
+| Level | Dashboard | ดูทะเบียน | เพิ่ม | แก้ไข | ลบ | จัดการผู้ใช้ |
+|-------|:---------:|:--------:|:----:|:-----:|:--:|:-----------:|
+| **Super Admin** (.env) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ (ทุกคน) |
+| **Admin** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ (Editor/Viewer) |
+| **Editor** | ✓ | ✓ | ✓ | ✓ | — | — |
+| **Viewer** | ✓ | ✓ | — | — | — | — |
+
+- Admin เชิญได้เฉพาะ Editor/Viewer · Super Admin เชิญได้ทั้ง Admin/Editor/Viewer
+- ปุ่ม/เมนูจะซ่อนอัตโนมัติตามสิทธิ์ และ backend บังคับสิทธิ์อีกชั้น (403 ถ้าไม่มีสิทธิ์)
+
+**การเชิญผ่านอีเมล (Invite)**
+- ถ้าตั้งค่า SMTP ใน `.env` → ระบบส่งอีเมลคำเชิญจริง
+- ถ้าไม่ตั้ง SMTP → ระบบทำงานแบบ *dev mode*: แสดง "ลิงก์คำเชิญ" ให้ copy ไปส่งเอง (ทำงานทันทีบน localhost)
+- ผู้ถูกเชิญเปิดลิงก์ → ตั้งรหัสผ่าน → เข้าใช้งานได้ทันทีตามสิทธิ์ที่กำหนด
 
 ## ฟีเจอร์ / Features
 

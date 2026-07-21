@@ -1,10 +1,15 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { useI18n } from '../i18n';
+import { useAuth } from '../auth';
 import { Badge } from './ui';
 
 export default function RecordsTable({ meta, onEdit, onNew, refreshKey, onChanged }) {
   const { t } = useI18n();
+  const { can } = useAuth();
+  const canEdit = can('records.edit');
+  const canDelete = can('records.delete');
+  const canCreate = can('records.create');
   const [rows, setRows] = useState([]);
   const [filters, setFilters] = useState({ q: '', status: '', level: '', product: '', priority: '' });
   const [loading, setLoading] = useState(true);
@@ -49,7 +54,7 @@ export default function RecordsTable({ meta, onEdit, onNew, refreshKey, onChange
         </select>
         <div className="spacer" style={{ flex: 1 }} />
         <span style={{ color: 'var(--ash)', fontWeight: 700, fontSize: 13 }}>{rows.length} {t.count}</span>
-        <button className="cta" onClick={onNew}>{t.newCA}</button>
+        {canCreate && <button className="cta" onClick={onNew}>{t.newCA}</button>}
       </div>
 
       <div className="table-wrap">
@@ -80,8 +85,8 @@ export default function RecordsTable({ meta, onEdit, onNew, refreshKey, onChange
                 <td style={{ whiteSpace: 'nowrap' }}>{r.due_date}</td>
                 <td>
                   <div className="row-actions">
-                    <button className="icon-btn" onClick={() => onEdit(r.id)}>{t.edit}</button>
-                    <button className="icon-btn danger" onClick={() => del(r)}>{t.del}</button>
+                    <button className="icon-btn" onClick={() => onEdit(r.id)}>{canEdit ? t.edit : t.view}</button>
+                    {canDelete && <button className="icon-btn danger" onClick={() => del(r)}>{t.del}</button>}
                   </div>
                 </td>
               </tr>

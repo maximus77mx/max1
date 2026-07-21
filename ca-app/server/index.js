@@ -1,3 +1,4 @@
+import './env.js'; // must be first — loads server/.env before db bootstrap
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
@@ -5,6 +6,9 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import db from './db.js';
 import { FIELDS, FIELD_KEYS, GROUPS, LISTS, SLA_DAYS } from './fields.js';
+import { authRequired, requirePerm } from './auth.js';
+import authRoutes from './routes/authRoutes.js';
+import userRoutes from './routes/userRoutes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -13,7 +17,13 @@ const PORT = process.env.PORT || 4000;
 app.use(cors());
 app.use(express.json({ limit: '2mb' }));
 
+// ---- Auth & user management ----
+app.use('/api/auth', authRoutes(db));
+app.use('/api/users', userRoutes(db));
+
 const api = express.Router();
+// Everything below requires a logged-in user.
+api.use(authRequired(db));
 
 // --- Metadata: field schema, groups, dropdown lists, SLA matrix ---
 api.get('/meta', (_req, res) => {
@@ -34,7 +44,7 @@ api.get('/next-id', (_req, res) => {
 });
 
 // --- List records (optional filters) ---
-api.get('/records', (req, res) => {
+api.get('/records', requirePerm('records.view'), (req, res) => {
   const { status, level, product, priority, q } = req.query;
   const where = [];
   const params = {};
@@ -50,7 +60,7 @@ api.get('/records', (req, res) => {
   res.json(db.prepare(sql).all(params));
 });
 
-api.get('/records/:id', (req, res) => {
+api.get('/records/:id', requirePerm('records.view'), (req, res) => {
   const row = db.prepare('SELECT * FROM ca_records WHERE id = ?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'not found' });
   res.json(row);
@@ -77,7 +87,7 @@ function validate(data) {
   return errors;
 }
 
-api.post('/records', (req, res) => {
+api.post('/records', requirePerm('records.create'), (req, res) => {
   const data = pickFields(req.body);
   const errors = validate(data);
   if (errors.length) return res.status(400).json({ errors });
@@ -90,7 +100,7 @@ api.post('/records', (req, res) => {
   res.status(201).json(db.prepare('SELECT * FROM ca_records WHERE id = ?').get(info.lastInsertRowid));
 });
 
-api.put('/records/:id', (req, res) => {
+api.put('/records/:id', requirePerm('records.edit'), (req, res) => {
   const existing = db.prepare('SELECT * FROM ca_records WHERE id = ?').get(req.params.id);
   if (!existing) return res.status(404).json({ error: 'not found' });
   const data = pickFields(req.body);
@@ -103,7 +113,7 @@ api.put('/records/:id', (req, res) => {
   res.json(db.prepare('SELECT * FROM ca_records WHERE id = ?').get(req.params.id));
 });
 
-api.delete('/records/:id', (req, res) => {
+api.delete('/records/:id', requirePerm('records.delete'), (req, res) => {
   const info = db.prepare('DELETE FROM ca_records WHERE id = ?').run(req.params.id);
   if (!info.changes) return res.status(404).json({ error: 'not found' });
   res.json({ ok: true });
@@ -121,7 +131,7 @@ function countBy(rows, key) {
 
 const OPEN_STATUSES = ['Open', 'In-progress', 'Verifying', 'Reopened'];
 
-api.get('/stats', (_req, res) => {
+api.get('/stats', requirePerm('dashboard.view'), (_req, res) => {
   const rows = db.prepare('SELECT * FROM ca_records').all();
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -153,7 +163,6 @@ api.get('/stats', (_req, res) => {
     if (r.status === 'Closed' && r.sustained === 'Not yet') closedNotSustained++;
   }
 
-  // On-time closure: closed on/before due date
   const closed = rows.filter((r) => r.status === 'Closed');
   let onTime = 0;
   for (const r of closed) {
