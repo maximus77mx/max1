@@ -45,21 +45,24 @@ export default function AcceptInvite({ token, onAccepted }) {
   }
   if (!invite) return <div className="loading">Loading…</div>;
   const rb = ROLE_BADGE[invite.role];
+  const isReset = invite.purpose === 'reset';
 
   return (
     <div className="auth-screen">
       <button className="lang-btn auth-lang" onClick={() => setLang(lang === 'th' ? 'en' : 'th')}>{t.lang}</button>
       <form className="auth-card" onSubmit={submit}>
         <div className="auth-logo"><b>QA</b> Corrective Action</div>
-        <div className="auth-sub">{t.acceptTitle}</div>
+        <div className="auth-sub">{isReset ? t.resetTitle : t.acceptTitle}</div>
         <div className="invite-meta">
           <span>{invite.email}</span>
           <span className="role-chip" style={{ background: rb.color }}>{rb.label}</span>
         </div>
-        <div className="field">
-          <label>{t.name}</label>
-          <input value={name} autoFocus onChange={(e) => setName(e.target.value)} />
-        </div>
+        {!isReset && (
+          <div className="field">
+            <label>{t.name}</label>
+            <input value={name} autoFocus onChange={(e) => setName(e.target.value)} />
+          </div>
+        )}
         <div className="field">
           <label>{t.setPassword}</label>
           <input type="password" value={pw} autoComplete="new-password" onChange={(e) => setPw(e.target.value)} required />

@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 import db from './db.js';
 import { FIELDS, FIELD_KEYS, GROUPS, LISTS, SLA_DAYS } from './fields.js';
 import { authRequired, requirePerm } from './auth.js';
+import { logAudit } from './audit.js';
 import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 
@@ -97,6 +98,7 @@ api.post('/records', requirePerm('records.create'), (req, res) => {
   const info = db
     .prepare(`INSERT INTO ca_records (${cols.map((c) => `"${c}"`).join(',')}) VALUES (${cols.map((c) => `@${c}`).join(',')})`)
     .run(data);
+  logAudit(db, req.user, 'record.create', { entity: 'record', ref: data.ca_id });
   res.status(201).json(db.prepare('SELECT * FROM ca_records WHERE id = ?').get(info.lastInsertRowid));
 });
 
@@ -110,13 +112,24 @@ api.put('/records/:id', requirePerm('records.edit'), (req, res) => {
   if (dup) return res.status(409).json({ errors: [{ field: 'ca_id', msg: 'CA ID already exists' }] });
   const setClause = FIELD_KEYS.map((c) => `"${c}" = @${c}`).join(', ');
   db.prepare(`UPDATE ca_records SET ${setClause}, updated_at = datetime('now') WHERE id = @id`).run({ ...data, id: req.params.id });
+  const changed = FIELD_KEYS.filter((k) => (existing[k] ?? null) !== (data[k] ?? null));
+  logAudit(db, req.user, 'record.update', { entity: 'record', ref: data.ca_id, detail: changed.length ? `fields: ${changed.join(', ')}` : null });
   res.json(db.prepare('SELECT * FROM ca_records WHERE id = ?').get(req.params.id));
 });
 
 api.delete('/records/:id', requirePerm('records.delete'), (req, res) => {
+  const existing = db.prepare('SELECT ca_id FROM ca_records WHERE id = ?').get(req.params.id);
   const info = db.prepare('DELETE FROM ca_records WHERE id = ?').run(req.params.id);
   if (!info.changes) return res.status(404).json({ error: 'not found' });
+  logAudit(db, req.user, 'record.delete', { entity: 'record', ref: existing?.ca_id });
   res.json({ ok: true });
+});
+
+// --- Audit log (users.manage) ---
+api.get('/audit', requirePerm('users.manage'), (req, res) => {
+  const limit = Math.min(Number(req.query.limit) || 200, 1000);
+  const rows = db.prepare('SELECT * FROM audit_log ORDER BY id DESC LIMIT ?').all(limit);
+  res.json(rows);
 });
 
 // --- Dashboard aggregations ---

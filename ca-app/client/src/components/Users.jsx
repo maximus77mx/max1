@@ -47,6 +47,11 @@ export default function Users({ flash }) {
     if (res.link) { setLinkBox({ email: u.email, link: res.link }); setCopied(false); }
     else flash(t.emailSent);
   };
+  const reset = async (u) => {
+    const res = await api.resetUserPassword(u.id);
+    if (res.link) { setLinkBox({ email: u.email, link: res.link }); setCopied(false); }
+    else flash(t.emailSent);
+  };
   const remove = async (u) => {
     if (!confirm(`${t.remove}: ${u.email}?`)) return;
     await api.removeUser(u.id); load();
@@ -129,6 +134,7 @@ export default function Users({ flash }) {
                       <div className="row-actions">
                         {u.status === 'invited' && <button className="icon-btn" onClick={() => resend(u)}>{t.resend}</button>}
                         {u.status !== 'invited' && <button className="icon-btn" onClick={() => toggle(u)}>{u.status === 'disabled' ? t.enable : t.disable}</button>}
+                        {u.status === 'active' && <button className="icon-btn" onClick={() => reset(u)}>{t.resetPassword}</button>}
                         <button className="icon-btn danger" onClick={() => remove(u)}>{t.remove}</button>
                       </div>
                     )}

@@ -66,11 +66,26 @@ CREATE TABLE IF NOT EXISTS invites (
   role TEXT NOT NULL,
   token TEXT UNIQUE NOT NULL,
   invited_by TEXT,
+  purpose TEXT DEFAULT 'invite',            -- invite | reset
   created_at TEXT DEFAULT (datetime('now')),
   expires_at TEXT,
   accepted_at TEXT
 );
+CREATE TABLE IF NOT EXISTS audit_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ts TEXT DEFAULT (datetime('now')),
+  actor_email TEXT,
+  actor_role TEXT,
+  action TEXT NOT NULL,                      -- e.g. record.create, user.invite
+  entity TEXT,                               -- record | user
+  entity_ref TEXT,                           -- CA ID / email
+  detail TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_audit_ts ON audit_log(ts);
 `);
+
+// Add purpose column if upgrading an older DB (ignore if it already exists).
+try { db.exec("ALTER TABLE invites ADD COLUMN purpose TEXT DEFAULT 'invite'"); } catch { /* already present */ }
 
 // ---- Bootstrap the Super Admin from .env ----
 // SUPER_ADMIN_EMAIL is required; SUPER_ADMIN_PASSWORD sets/updates the password.

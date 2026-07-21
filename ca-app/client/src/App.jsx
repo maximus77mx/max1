@@ -9,6 +9,8 @@ import RegisterForm from './components/RegisterForm';
 import Login from './components/Login';
 import AcceptInvite from './components/AcceptInvite';
 import Users from './components/Users';
+import Audit from './components/Audit';
+import ChangePassword from './components/ChangePassword';
 
 function inviteTokenFromUrl() {
   return new URLSearchParams(window.location.search).get('invite');
@@ -23,6 +25,7 @@ export default function App() {
   const [editId, setEditId] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [toast, setToast] = useState(null);
+  const [showChangePw, setShowChangePw] = useState(false);
   const [inviteToken] = useState(inviteTokenFromUrl());
 
   const t = STR[lang];
@@ -111,12 +114,14 @@ export default function App() {
               {navItem('dashboard', t.dashboard, 'dashboard.view')}
               {navItem('records', t.records, 'records.view')}
               {navItem('users', t.users, 'users.manage')}
+              {navItem('audit', t.auditLog, 'users.manage')}
             </nav>
             <div className="spacer" />
             <button className="lang-btn" onClick={() => setLang(lang === 'th' ? 'en' : 'th')}>{t.lang}</button>
             <div className="user-chip">
               <span className="role-chip" style={{ background: rb.color }}>{rb.label}</span>
               <span className="user-name">{user.name || user.email}</span>
+              <button className="lang-btn" onClick={() => setShowChangePw(true)}>{t.changePassword}</button>
               <button className="lang-btn" onClick={logout}>{t.logout}</button>
             </div>
             {can('records.create') && <button className="cta" onClick={openNew}>{t.newCA}</button>}
@@ -134,6 +139,7 @@ export default function App() {
               />
             ) : <div className="empty">{t.noPermission}</div>)}
             {view === 'users' && (can('users.manage') ? <Users flash={flash} /> : <div className="empty">{t.noPermission}</div>)}
+            {view === 'audit' && (can('users.manage') ? <Audit /> : <div className="empty">{t.noPermission}</div>)}
             {view === 'form' && (
               <RegisterForm
                 meta={meta}
@@ -144,6 +150,7 @@ export default function App() {
             )}
           </main>
 
+          {showChangePw && <ChangePassword onClose={() => setShowChangePw(false)} flash={flash} />}
           <Toast msg={toast?.msg} kind={toast?.kind} />
         </div>
       </AuthContext.Provider>

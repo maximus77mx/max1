@@ -38,10 +38,14 @@ export const api = {
   me: () => req('/auth/me'),
   invite: (t) => req(`/auth/invite/${t}`),
   acceptInvite: (data) => req('/auth/accept-invite', { method: 'POST', body: JSON.stringify(data) }),
+  changePassword: (current_password, new_password) =>
+    req('/auth/change-password', { method: 'POST', body: JSON.stringify({ current_password, new_password }) }),
   // users
   users: () => req('/users'),
   inviteUser: (email, role) => req('/users/invite', { method: 'POST', body: JSON.stringify({ email, role }) }),
   resendInvite: (id) => req(`/users/${id}/resend`, { method: 'POST' }),
+  resetUserPassword: (id) => req(`/users/${id}/reset`, { method: 'POST' }),
+  audit: (limit = 200) => req(`/audit?limit=${limit}`),
   setUserRole: (id, role) => req(`/users/${id}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
   setUserStatus: (id, status) => req(`/users/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
   removeUser: (id) => req(`/users/${id}`, { method: 'DELETE' }),
