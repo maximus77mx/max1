@@ -21,6 +21,7 @@ export const PERMISSIONS = [
   'records.edit',
   'records.delete',
   'users.manage',
+  'settings.manage',
 ];
 
 const ALL = new Set(PERMISSIONS);

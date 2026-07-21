@@ -10,6 +10,7 @@ import { authRequired, requirePerm } from './auth.js';
 import { logAudit } from './audit.js';
 import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
+import settingsRoutes from './routes/settingsRoutes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -21,6 +22,7 @@ app.use(express.json({ limit: '2mb' }));
 // ---- Auth & user management ----
 app.use('/api/auth', authRoutes(db));
 app.use('/api/users', userRoutes(db));
+app.use('/api/settings', settingsRoutes(db));
 
 const api = express.Router();
 // Everything below requires a logged-in user.

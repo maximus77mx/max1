@@ -10,6 +10,7 @@ import Login from './components/Login';
 import AcceptInvite from './components/AcceptInvite';
 import Users from './components/Users';
 import Audit from './components/Audit';
+import Settings from './components/Settings';
 import ChangePassword from './components/ChangePassword';
 
 function inviteTokenFromUrl() {
@@ -115,6 +116,7 @@ export default function App() {
               {navItem('records', t.records, 'records.view')}
               {navItem('users', t.users, 'users.manage')}
               {navItem('audit', t.auditLog, 'users.manage')}
+              {navItem('settings', t.settings, 'settings.manage')}
             </nav>
             <div className="spacer" />
             <button className="lang-btn" onClick={() => setLang(lang === 'th' ? 'en' : 'th')}>{t.lang}</button>
@@ -140,6 +142,7 @@ export default function App() {
             ) : <div className="empty">{t.noPermission}</div>)}
             {view === 'users' && (can('users.manage') ? <Users flash={flash} /> : <div className="empty">{t.noPermission}</div>)}
             {view === 'audit' && (can('users.manage') ? <Audit /> : <div className="empty">{t.noPermission}</div>)}
+            {view === 'settings' && (can('settings.manage') ? <Settings flash={flash} /> : <div className="empty">{t.noPermission}</div>)}
             {view === 'form' && (
               <RegisterForm
                 meta={meta}

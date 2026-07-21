@@ -1,7 +1,7 @@
 import express from 'express';
 import crypto from 'crypto';
 import { authRequired, requirePerm, canManageUser, ASSIGNABLE_ROLES, ROLES } from '../auth.js';
-import { sendInviteEmail, mailEnabled } from '../mailer.js';
+import { sendInviteEmail, isMailEnabled } from '../mailer.js';
 import { logAudit } from '../audit.js';
 
 function inviteBase(req) {
@@ -25,7 +25,7 @@ export default function userRoutes(db) {
       users,
       pendingInvites: invites,
       assignableRoles: ASSIGNABLE_ROLES[req.user.role] || [],
-      mailEnabled,
+      mailEnabled: isMailEnabled(db),
     });
   });
 
@@ -52,7 +52,7 @@ export default function userRoutes(db) {
     }
 
     const link = `${inviteBase(req)}/?invite=${token}`;
-    const result = await sendInviteEmail({ to: email, link, inviterName: req.user.name || req.user.email, role });
+    const result = await sendInviteEmail(db, { to: email, link, inviterName: req.user.name || req.user.email, role });
     logAudit(db, req.user, 'user.invite', { entity: 'user', ref: email, detail: `role: ${role}` });
     res.status(201).json({ email, role, delivered: result.delivered, link: result.delivered ? undefined : link });
   });
@@ -67,7 +67,7 @@ export default function userRoutes(db) {
     db.prepare('INSERT INTO invites (email, role, token, invited_by, purpose, expires_at) VALUES (?, ?, ?, ?, ?, ?)')
       .run(target.email, target.role, token, req.user.email, 'reset', expires);
     const link = `${inviteBase(req)}/?invite=${token}`;
-    const result = await sendInviteEmail({ to: target.email, link, inviterName: req.user.name || req.user.email, role: target.role, reset: true });
+    const result = await sendInviteEmail(db, { to: target.email, link, inviterName: req.user.name || req.user.email, role: target.role, reset: true });
     logAudit(db, req.user, 'user.reset_password', { entity: 'user', ref: target.email });
     res.json({ delivered: result.delivered, link: result.delivered ? undefined : link });
   });
@@ -83,7 +83,7 @@ export default function userRoutes(db) {
       .run(target.email, target.role, token, req.user.email, expires);
     db.prepare("UPDATE users SET status = 'invited' WHERE id = ?").run(target.id);
     const link = `${inviteBase(req)}/?invite=${token}`;
-    const result = await sendInviteEmail({ to: target.email, link, inviterName: req.user.name || req.user.email, role: target.role });
+    const result = await sendInviteEmail(db, { to: target.email, link, inviterName: req.user.name || req.user.email, role: target.role });
     res.json({ delivered: result.delivered, link: result.delivered ? undefined : link });
   });
 

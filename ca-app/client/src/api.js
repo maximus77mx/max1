@@ -46,6 +46,10 @@ export const api = {
   resendInvite: (id) => req(`/users/${id}/resend`, { method: 'POST' }),
   resetUserPassword: (id) => req(`/users/${id}/reset`, { method: 'POST' }),
   audit: (limit = 200) => req(`/audit?limit=${limit}`),
+  // settings (super admin)
+  getMailSettings: () => req('/settings/mail'),
+  saveMailSettings: (data) => req('/settings/mail', { method: 'PUT', body: JSON.stringify(data) }),
+  testMail: (to) => req('/settings/mail/test', { method: 'POST', body: JSON.stringify({ to }) }),
   setUserRole: (id, role) => req(`/users/${id}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
   setUserStatus: (id, status) => req(`/users/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
   removeUser: (id) => req(`/users/${id}`, { method: 'DELETE' }),

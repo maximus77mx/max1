@@ -82,6 +82,10 @@ CREATE TABLE IF NOT EXISTS audit_log (
   detail TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_audit_ts ON audit_log(ts);
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT
+);
 `);
 
 // Add purpose column if upgrading an older DB (ignore if it already exists).

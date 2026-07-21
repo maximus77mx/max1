@@ -1,23 +1,34 @@
 import nodemailer from 'nodemailer';
+import { getMailConfig } from './settings.js';
 
-// If SMTP_* env vars are present we send real email; otherwise we run in
-// "dev mode" where the invite link is returned to the caller (and logged),
-// so invites work on localhost with zero setup.
-const hasSmtp = !!(process.env.SMTP_HOST && process.env.SMTP_PORT);
-
-let transporter = null;
-if (hasSmtp) {
-  transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT),
-    secure: process.env.SMTP_SECURE === 'true',
-    auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } : undefined,
+// Build a transporter from the current (DB-or-env) mail config.
+function buildTransport(cfg) {
+  return nodemailer.createTransport({
+    host: cfg.host,
+    port: Number(cfg.port),
+    secure: cfg.secure,
+    auth: cfg.user ? { user: cfg.user, pass: cfg.pass } : undefined,
+    // Fail fast instead of hanging the request if the SMTP host is unreachable.
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 15000,
   });
 }
 
-export const mailEnabled = hasSmtp;
+export function isMailEnabled(db) {
+  const c = getMailConfig(db);
+  return !!(c.host && c.port);
+}
 
-export async function sendInviteEmail({ to, link, inviterName, role, reset = false }) {
+function fromLine(cfg) {
+  const email = cfg.sender_email || cfg.user;
+  return cfg.sender_name ? `${cfg.sender_name} <${email}>` : email;
+}
+
+// Sends the invite/reset email if SMTP is configured; otherwise runs in
+// "dev mode" and returns the link for manual sharing.
+export async function sendInviteEmail(db, { to, link, inviterName, role, reset = false }) {
+  const cfg = getMailConfig(db);
   const subject = reset
     ? 'รีเซ็ตรหัสผ่าน QA Corrective Action / Password reset'
     : 'คุณได้รับเชิญให้ใช้งาน QA Corrective Action / You have been invited';
@@ -38,16 +49,35 @@ export async function sendInviteEmail({ to, link, inviterName, role, reset = fal
       <p style="font-size:12px;color:#91918c">หากปุ่มไม่ทำงาน วางลิงก์นี้ในเบราว์เซอร์:<br>${link}</p>
     </div>`;
 
-  if (!transporter) {
+  if (!cfg.host || !cfg.port) {
     console.log(`\n[mailer:dev] Invite link for ${to}:\n${link}\n`);
     return { delivered: false, link };
   }
-  await transporter.sendMail({
-    from: process.env.SMTP_FROM || process.env.SMTP_USER,
+  try {
+    await buildTransport(cfg).sendMail({ from: fromLine(cfg), to, subject, html });
+    console.log(`[mailer] Invite email sent to ${to}`);
+    return { delivered: true };
+  } catch (e) {
+    // Delivery failed (bad SMTP / unreachable) — fall back to returning the link
+    // so the admin can still share it manually instead of the whole action failing.
+    console.error(`[mailer] send failed for ${to}: ${e.message} — falling back to link`);
+    return { delivered: false, link, error: e.message };
+  }
+}
+
+// Send a test email to verify SMTP settings.
+export async function sendTestEmail(db, to) {
+  const cfg = getMailConfig(db);
+  if (!cfg.host || !cfg.port) throw new Error('smtp_not_configured');
+  await buildTransport(cfg).sendMail({
+    from: fromLine(cfg),
     to,
-    subject,
-    html,
+    subject: 'ทดสอบการส่งอีเมล — QA Corrective Action / SMTP test',
+    html: `<div style="font-family:Arial,'Noto Sans Thai',sans-serif">
+      <h2 style="color:#e60023">SMTP test OK ✓</h2>
+      <p>ระบบส่งอีเมลของ QA Corrective Action ตั้งค่าถูกต้องแล้ว</p>
+      <p style="font-size:12px;color:#91918c">Host: ${cfg.host}:${cfg.port} · From: ${fromLine(cfg)}</p>
+    </div>`,
   });
-  console.log(`[mailer] Invite email sent to ${to}`);
   return { delivered: true };
 }
