@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.log
+
+# SQLite runtime files (DB is re-created & re-seeded from data/seed.json on first run)
+server/data/*.db
+server/data/*.db-shm
+server/data/*.db-wal

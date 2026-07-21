@@ -1,0 +1,122 @@
+import { useEffect, useMemo, useState } from 'react';
+import { api } from '../api';
+import { useI18n } from '../i18n';
+
+function Field({ f, lang, value, error, onChange }) {
+  const label = lang === 'th' ? f.th : f.en;
+  const { t } = useI18n();
+  const common = {
+    id: f.key,
+    value: value ?? '',
+    onChange: (e) => onChange(f.key, e.target.value),
+  };
+  return (
+    <div className={`field ${f.type === 'ta' ? 'full' : ''} ${error ? 'err' : ''}`}>
+      <label htmlFor={f.key}>
+        {label}
+        {f.required && <span className="req">*</span>}
+      </label>
+      {f.type === 'select' ? (
+        <select {...common}>
+          <option value="">{t.selectPlaceholder}</option>
+          {f.options.map((o) => (
+            <option key={o} value={o}>{o}</option>
+          ))}
+        </select>
+      ) : f.type === 'ta' ? (
+        <textarea {...common} rows={2} />
+      ) : (
+        <input type={f.type === 'date' ? 'date' : 'text'} {...common} />
+      )}
+      {error && <div className="msg">{error}</div>}
+    </div>
+  );
+}
+
+export default function RegisterForm({ meta, editId, onSaved, onCancel }) {
+  const { lang, t } = useI18n();
+  const [form, setForm] = useState({});
+  const [errors, setErrors] = useState({});
+  const [saving, setSaving] = useState(false);
+
+  // Attach dropdown options to each field from meta.lists
+  const fields = useMemo(
+    () => meta.fields.map((f) => ({ ...f, options: f.list ? meta.lists[f.list] : null })),
+    [meta]
+  );
+
+  useEffect(() => {
+    if (editId) {
+      api.get(editId).then((r) => setForm(r));
+    } else {
+      api.nextId().then(({ next_id }) =>
+        setForm({ ca_id: next_id, raise_date: new Date().toISOString().slice(0, 10), status: 'Open' })
+      );
+    }
+  }, [editId]);
+
+  const isIndividual = form.level === 'Individual';
+
+  const change = (k, v) => {
+    setForm((p) => ({ ...p, [k]: v }));
+    setErrors((p) => ({ ...p, [k]: undefined }));
+  };
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setErrors({});
+    try {
+      if (editId) await api.update(editId, form);
+      else await api.create(form);
+      onSaved();
+    } catch (err) {
+      if (err.body?.errors) {
+        const map = {};
+        for (const e of err.body.errors) map[e.field] = e.msg;
+        setErrors(map);
+        onSaved(null, 'err');
+      } else {
+        onSaved(null, 'err');
+      }
+      // scroll to first error
+      const first = err.body?.errors?.[0]?.field;
+      if (first) document.getElementById(first)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form className="form-shell" onSubmit={submit}>
+      <div className="form-head">
+        <h2>{editId ? t.editTitle : t.formTitle}</h2>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button type="button" className="cta ghost" onClick={onCancel}>{t.cancel}</button>
+          <button type="submit" className="cta" disabled={saving}>{saving ? t.saving : t.save}</button>
+        </div>
+      </div>
+
+      {meta.groups.map((g) => {
+        if (g.key === 'individual' && !isIndividual) return null;
+        const gfields = fields.filter((f) => f.group === g.key);
+        if (!gfields.length) return null;
+        return (
+          <fieldset className="fieldset" key={g.key}>
+            <span className="legend">{lang === 'th' ? g.th : g.en}</span>
+            <div className="grid-fields">
+              {gfields.map((f) => (
+                <Field key={f.key} f={f} lang={lang} value={form[f.key]} error={errors[f.key]} onChange={change} />
+              ))}
+            </div>
+          </fieldset>
+        );
+      })}
+
+      <div className="form-actions">
+        <button type="button" className="cta ghost" onClick={onCancel}>{t.cancel}</button>
+        <button type="submit" className="cta" disabled={saving}>{saving ? t.saving : t.save}</button>
+      </div>
+    </form>
+  );
+}
