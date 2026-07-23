@@ -65,12 +65,31 @@ api.get('/roster/search', requirePerm('records.view'), (req, res) => {
   const q = (req.query.q || '').trim();
   if (q.length < 2) return res.json([]);
   const rows = db
-    .prepare(`SELECT employee_id, fullname, n5_name, n4_name, n3_name, division, section, sub_section, agent_type
+    .prepare(`SELECT employee_id, fullname, n5_name, n4_name, n3_name, division, section, sub_section, agent_type, source
               FROM org_roster
               WHERE fullname LIKE @q OR employee_id LIKE @q
               ORDER BY fullname LIMIT 20`)
     .all({ q: `%${q}%` });
   res.json(rows);
+});
+
+// --- Add a new employee to the roster manually (for people not yet in the monthly file) ---
+api.post('/roster', (req, res) => {
+  if (!can(req.user.role, 'records.create') && !can(req.user.role, 'users.manage'))
+    return res.status(403).json({ error: 'forbidden' });
+  const fullname = (req.body.fullname || '').trim();
+  if (!fullname) return res.status(400).json({ error: 'fullname_required' });
+  let employeeId = (req.body.employee_id || '').trim();
+  if (!employeeId) employeeId = 'M-' + crypto.randomBytes(4).toString('hex').toUpperCase();
+  const dup = db.prepare('SELECT employee_id FROM org_roster WHERE employee_id = ?').get(employeeId);
+  if (dup) return res.status(409).json({ error: 'employee_exists' });
+  const g = (k) => (req.body[k] ? String(req.body[k]).trim() : null);
+  db.prepare(`INSERT INTO org_roster
+    (employee_id, fullname, n5_name, n4_name, n3_name, division, section, sub_section, agent_type, emp_status, source)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ปกติ', 'manual')`)
+    .run(employeeId, fullname, g('n5_name'), g('n4_name'), g('n3_name'), g('division'), g('section'), g('sub_section'), g('agent_type'));
+  logAudit(db, req.user, 'roster.add', { entity: 'roster', ref: employeeId, detail: fullname });
+  res.status(201).json(db.prepare('SELECT * FROM org_roster WHERE employee_id = ?').get(employeeId));
 });
 
 // --- Suggest next CA ID like CA-2026-091 ---

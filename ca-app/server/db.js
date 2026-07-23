@@ -134,12 +134,17 @@ CREATE TABLE IF NOT EXISTS org_roster (
 );
 CREATE INDEX IF NOT EXISTS idx_roster_name ON org_roster(fullname);
 `);
+// Track whether a roster row came from the uploaded file or was added manually.
+try { db.exec("ALTER TABLE org_roster ADD COLUMN source TEXT DEFAULT 'file'"); } catch { /* already present */ }
 
 export function replaceRoster(records) {
   const ins = db.prepare(`INSERT OR REPLACE INTO org_roster
-    (employee_id, fullname, n5_name, n4_name, n3_name, division, section, sub_section, agent_type, emp_status)
-    VALUES (@employee_id, @fullname, @n5_name, @n4_name, @n3_name, @division, @section, @sub_section, @agent_type, @emp_status)`);
+    (employee_id, fullname, n5_name, n4_name, n3_name, division, section, sub_section, agent_type, emp_status, source)
+    VALUES (@employee_id, @fullname, @n5_name, @n4_name, @n3_name, @division, @section, @sub_section, @agent_type, @emp_status, @source)`);
   const txn = db.transaction((rows) => {
+    // Manually-added employees survive a file upload; the file version wins
+    // when the same employee_id appears in the new file.
+    const manual = db.prepare("SELECT * FROM org_roster WHERE source = 'manual'").all();
     db.prepare('DELETE FROM org_roster').run();
     let n = 0;
     for (const r of rows) {
@@ -155,9 +160,14 @@ export function replaceRoster(records) {
         sub_section: r.sub_section || null,
         agent_type: r.agent_type || null,
         emp_status: r.emp_status || null,
+        source: 'file',
       });
       n++;
     }
+    const keep = db.prepare(`INSERT OR IGNORE INTO org_roster
+      (employee_id, fullname, n5_name, n4_name, n3_name, division, section, sub_section, agent_type, emp_status, source)
+      VALUES (@employee_id, @fullname, @n5_name, @n4_name, @n3_name, @division, @section, @sub_section, @agent_type, @emp_status, 'manual')`);
+    for (const m of manual) keep.run(m);
     return n;
   });
   return txn(records);

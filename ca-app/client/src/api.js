@@ -53,6 +53,8 @@ export const api = {
   // org roster
   rosterSearch: (q) => req(`/roster/search?q=${encodeURIComponent(q)}`),
   rosterInfo: () => req('/settings/roster'),
+  addRosterEmployee: (data) => req('/roster', { method: 'POST', body: JSON.stringify(data) }),
+  deleteManualEmployee: (employeeId) => req(`/settings/roster/manual/${encodeURIComponent(employeeId)}`, { method: 'DELETE' }),
   uploadRoster: async (file) => {
     const fd = new FormData();
     fd.append('file', file);

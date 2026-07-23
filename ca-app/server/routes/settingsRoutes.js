@@ -55,14 +55,25 @@ export default function settingsRoutes(db) {
     }
   });
 
-  // GET /api/settings/roster — roster status (count, last upload)
+  // GET /api/settings/roster — roster status (count, last upload, manual entries)
   r.get('/roster', (_req, res) => {
     const count = db.prepare('SELECT COUNT(*) AS n FROM org_roster').get().n;
+    const manual = db.prepare("SELECT employee_id, fullname, n5_name, n4_name, division, section FROM org_roster WHERE source = 'manual' ORDER BY fullname").all();
     res.json({
       count,
+      manual,
       updated_at: getSetting(db, 'roster.updated_at'),
       filename: getSetting(db, 'roster.filename'),
     });
+  });
+
+  // DELETE /api/settings/roster/manual/:employeeId — remove a manually-added employee
+  r.delete('/roster/manual/:employeeId', (req, res) => {
+    const row = db.prepare("SELECT * FROM org_roster WHERE employee_id = ? AND source = 'manual'").get(req.params.employeeId);
+    if (!row) return res.status(404).json({ error: 'not_found' });
+    db.prepare('DELETE FROM org_roster WHERE employee_id = ?').run(row.employee_id);
+    logAudit(db, req.user, 'roster.remove_manual', { entity: 'roster', ref: row.employee_id, detail: row.fullname });
+    res.json({ ok: true });
   });
 
   // POST /api/settings/roster — upload a new roster Excel (replaces the table)

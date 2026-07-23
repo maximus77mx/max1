@@ -153,6 +153,40 @@ export default function Settings({ flash }) {
             </button>
           </div>
         </div>
+
+        {roster?.manual?.length > 0 && (
+          <div style={{ marginTop: 16 }}>
+            <div className="section-title">{t.manualEntries} ({roster.manual.length})</div>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr><th>ID</th><th>{t.name}</th><th>Sup / N-5</th><th>N-4</th><th>Section</th><th></th></tr>
+                </thead>
+                <tbody>
+                  {roster.manual.map((m) => (
+                    <tr key={m.employee_id}>
+                      <td style={{ fontSize: 12, color: 'var(--mute)' }}>{m.employee_id}</td>
+                      <td style={{ fontWeight: 700 }}>{m.fullname}</td>
+                      <td>{m.n5_name || '—'}</td>
+                      <td>{m.n4_name || '—'}</td>
+                      <td>{m.section || m.division || '—'}</td>
+                      <td>
+                        <button type="button" className="icon-btn danger"
+                          onClick={async () => {
+                            if (!confirm(`${t.del}: ${m.fullname}?`)) return;
+                            await api.deleteManualEmployee(m.employee_id);
+                            api.rosterInfo().then(setRoster);
+                          }}>
+                          {t.del}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

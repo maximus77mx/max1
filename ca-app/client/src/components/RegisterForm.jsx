@@ -4,6 +4,7 @@ import { useI18n } from '../i18n';
 import { useAuth } from '../auth';
 import RecordExtras from './RecordExtras';
 import RosterPicker from './RosterPicker';
+import AddEmployeeModal from './AddEmployeeModal';
 
 function Field({ f, lang, value, error, onChange, readOnly }) {
   const label = lang === 'th' ? f.th : f.en;
@@ -45,6 +46,7 @@ export default function RegisterForm({ meta, editId, onSaved, onCancel, flash })
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [userOpts, setUserOpts] = useState(null);
+  const [addEmpName, setAddEmpName] = useState(null); // non-null = show add-employee modal
 
   // Load the user list for the Owner picker (editors+ only).
   useEffect(() => {
@@ -131,6 +133,9 @@ export default function RegisterForm({ meta, editId, onSaved, onCancel, flash })
                       value={form.agent}
                       disabled={readOnly}
                       placeholder={t.rosterHint}
+                      canAdd={!readOnly}
+                      addLabel={t.addEmployee}
+                      onAdd={(name) => setAddEmpName(name || '')}
                       onChange={(v) => change('agent', v)}
                       onPick={(emp) => setForm((p) => ({
                         ...p,
@@ -166,6 +171,24 @@ export default function RegisterForm({ meta, editId, onSaved, onCancel, flash })
 
       {editId && form.id && (
         <RecordExtras record={form} onRecordChanged={(updated) => setForm(updated)} flash={flash} />
+      )}
+
+      {addEmpName !== null && (
+        <AddEmployeeModal
+          initialName={addEmpName}
+          flash={flash}
+          onClose={() => setAddEmpName(null)}
+          onSaved={(emp) => {
+            setAddEmpName(null);
+            setForm((p) => ({
+              ...p,
+              agent: emp.fullname,
+              sup: emp.n5_name || p.sup,
+              n4: emp.n4_name || p.n4,
+              seb_section: emp.section || p.seb_section,
+            }));
+          }}
+        />
       )}
 
       {!readOnly && (

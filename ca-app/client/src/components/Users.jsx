@@ -3,6 +3,7 @@ import { api } from '../api';
 import { useI18n } from '../i18n';
 import { useAuth, ROLE_BADGE } from '../auth';
 import RosterPicker from './RosterPicker';
+import AddEmployeeModal from './AddEmployeeModal';
 
 function RoleChip({ role }) {
   const rb = ROLE_BADGE[role] || { label: role, color: '#62625b' };
@@ -65,6 +66,7 @@ export default function Users({ flash }) {
   // Linking a user to the org roster: self, super admin, or a manageable user.
   const canLink = (u) => u.id === user.id || user.role === 'super_admin' || manageable(u);
   const [linkDraft, setLinkDraft] = useState({}); // user id → typed text
+  const [addEmpFor, setAddEmpFor] = useState(null); // { user, name } → show add-employee modal
 
   const linkEmployee = async (u, emp) => {
     await api.setUserEmployee(u.id, emp.employee_id);
@@ -159,6 +161,9 @@ export default function Users({ flash }) {
                       <RosterPicker
                         value={linkDraft[u.id]}
                         placeholder={t.linkEmployee}
+                        canAdd
+                        addLabel={t.addEmployee}
+                        onAdd={(name) => setAddEmpFor({ user: u, name })}
                         onChange={(v) => setLinkDraft((p) => ({ ...p, [u.id]: v }))}
                         onPick={(emp) => linkEmployee(u, emp)}
                       />
@@ -184,6 +189,19 @@ export default function Users({ flash }) {
           </table>
         </div>
       </div>
+
+      {addEmpFor && (
+        <AddEmployeeModal
+          initialName={addEmpFor.name}
+          flash={flash}
+          onClose={() => setAddEmpFor(null)}
+          onSaved={(emp) => {
+            const u = addEmpFor.user;
+            setAddEmpFor(null);
+            linkEmployee(u, emp);
+          }}
+        />
+      )}
     </div>
   );
 }

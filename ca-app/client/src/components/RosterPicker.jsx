@@ -3,9 +3,10 @@ import { api } from '../api';
 
 // Autocomplete against the org roster. Renders an input; typing ≥2 chars
 // searches employees, and choosing one calls onPick(employee).
-export default function RosterPicker({ value, onChange, onPick, placeholder, disabled, id }) {
+export default function RosterPicker({ value, onChange, onPick, placeholder, disabled, id, canAdd, onAdd, addLabel }) {
   const [open, setOpen] = useState(false);
   const [results, setResults] = useState([]);
+  const [searched, setSearched] = useState(false);
   const [hi, setHi] = useState(-1);
   const boxRef = useRef(null);
   const timer = useRef(null);
@@ -18,12 +19,13 @@ export default function RosterPicker({ value, onChange, onPick, placeholder, dis
 
   const search = (q) => {
     clearTimeout(timer.current);
-    if (!q || q.trim().length < 2) { setResults([]); setOpen(false); return; }
+    if (!q || q.trim().length < 2) { setResults([]); setOpen(false); setSearched(false); return; }
     timer.current = setTimeout(async () => {
       try {
         const r = await api.rosterSearch(q.trim());
         setResults(r);
-        setOpen(r.length > 0);
+        setSearched(true);
+        setOpen(r.length > 0 || !!canAdd);
         setHi(-1);
       } catch { /* ignore */ }
     }, 220);
@@ -68,6 +70,12 @@ export default function RosterPicker({ value, onChange, onPick, placeholder, dis
               <div className="ri-org">{[emp.division, emp.section].filter(Boolean).join(' › ')}</div>
             </button>
           ))}
+          {canAdd && searched && (
+            <button type="button" className="roster-item roster-add"
+              onClick={() => { setOpen(false); onAdd?.((value || '').trim()); }}>
+              ＋ {addLabel || 'Add new employee'}{value?.trim() ? `: "${value.trim()}"` : ''}
+            </button>
+          )}
         </div>
       )}
     </div>
