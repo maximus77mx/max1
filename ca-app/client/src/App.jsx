@@ -113,7 +113,7 @@ export default function App() {
             </div>
             <nav className="nav">
               {navItem('dashboard', t.dashboard, 'dashboard.view')}
-              {navItem('records', t.records, 'records.view')}
+              {navItem('records', user.role === 'owner' ? t.myCAs : t.records, 'records.view')}
               {navItem('users', t.users, 'users.manage')}
               {navItem('audit', t.auditLog, 'users.manage')}
               {navItem('settings', t.settings, 'settings.manage')}
@@ -148,6 +148,7 @@ export default function App() {
                 meta={meta}
                 editId={editId}
                 onSaved={onSaved}
+                flash={flash}
                 onCancel={() => setView(editId ? 'records' : 'dashboard')}
               />
             )}

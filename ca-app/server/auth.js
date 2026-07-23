@@ -3,13 +3,15 @@ import jwt from 'jsonwebtoken';
 export const JWT_SECRET = process.env.JWT_SECRET || 'dev-insecure-secret-change-me';
 const TOKEN_TTL = '7d';
 
-// ---- 4-level role model ----
-export const ROLES = ['super_admin', 'admin', 'editor', 'viewer'];
+// ---- 5-level role model ----
+// 'owner' = action owner: sees & updates ONLY the CAs assigned to them.
+export const ROLES = ['super_admin', 'admin', 'editor', 'owner', 'viewer'];
 
 export const ROLE_LABELS = {
   super_admin: { th: 'Super Admin', en: 'Super Admin' },
   admin: { th: 'Admin', en: 'Admin' },
   editor: { th: 'Editor', en: 'Editor' },
+  owner: { th: 'Owner (เจ้าของงาน)', en: 'Owner' },
   viewer: { th: 'Viewer', en: 'Viewer' },
 };
 
@@ -18,8 +20,10 @@ export const PERMISSIONS = [
   'dashboard.view',
   'records.view',
   'records.create',
-  'records.edit',
+  'records.edit',       // edit any record
+  'records.edit_own',   // update progress/evidence on records assigned to me
   'records.delete',
+  'records.export',
   'users.manage',
   'settings.manage',
 ];
@@ -27,10 +31,16 @@ export const PERMISSIONS = [
 const ALL = new Set(PERMISSIONS);
 export const ROLE_PERMS = {
   super_admin: ALL,
-  admin: new Set(['dashboard.view', 'records.view', 'records.create', 'records.edit', 'records.delete', 'users.manage']),
-  editor: new Set(['dashboard.view', 'records.view', 'records.create', 'records.edit']),
-  viewer: new Set(['dashboard.view', 'records.view']),
+  admin: new Set(['dashboard.view', 'records.view', 'records.create', 'records.edit', 'records.edit_own', 'records.delete', 'records.export', 'users.manage']),
+  editor: new Set(['dashboard.view', 'records.view', 'records.create', 'records.edit', 'records.edit_own', 'records.export']),
+  owner: new Set(['dashboard.view', 'records.view', 'records.edit_own', 'records.export']),
+  viewer: new Set(['dashboard.view', 'records.view', 'records.export']),
 };
+
+// Roles whose record visibility is scoped to their own assigned CAs.
+export function isScopedToOwn(role) {
+  return role === 'owner';
+}
 
 export function can(role, perm) {
   return ROLE_PERMS[role]?.has(perm) ?? false;
@@ -38,15 +48,15 @@ export function can(role, perm) {
 
 // Which roles a given actor is allowed to assign when inviting / changing roles.
 export const ASSIGNABLE_ROLES = {
-  super_admin: ['admin', 'editor', 'viewer'],
-  admin: ['editor', 'viewer'],
+  super_admin: ['admin', 'editor', 'owner', 'viewer'],
+  admin: ['editor', 'owner', 'viewer'],
 };
 
 // Can `actor` manage (change role / disable / delete) a user who currently holds `targetRole`?
 export function canManageUser(actorRole, targetRole) {
   if (targetRole === 'super_admin') return false; // super admin is managed via .env only
   if (actorRole === 'super_admin') return true;
-  if (actorRole === 'admin') return targetRole === 'editor' || targetRole === 'viewer';
+  if (actorRole === 'admin') return ['editor', 'owner', 'viewer'].includes(targetRole);
   return false;
 }
 

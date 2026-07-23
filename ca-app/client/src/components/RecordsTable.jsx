@@ -5,11 +5,13 @@ import { useAuth } from '../auth';
 import { Badge } from './ui';
 
 export default function RecordsTable({ meta, onEdit, onNew, refreshKey, onChanged }) {
-  const { t } = useI18n();
+  const { lang, t } = useI18n();
   const { can } = useAuth();
   const canEdit = can('records.edit');
   const canDelete = can('records.delete');
   const canCreate = can('records.create');
+  const canExport = can('records.export');
+  const [exporting, setExporting] = useState(false);
   const [rows, setRows] = useState([]);
   const [filters, setFilters] = useState({ q: '', status: '', level: '', product: '', priority: '' });
   const [loading, setLoading] = useState(true);
@@ -54,6 +56,12 @@ export default function RecordsTable({ meta, onEdit, onNew, refreshKey, onChange
         </select>
         <div className="spacer" style={{ flex: 1 }} />
         <span style={{ color: 'var(--ash)', fontWeight: 700, fontSize: 13 }}>{rows.length} {t.count}</span>
+        {canExport && (
+          <button className="cta ghost" disabled={exporting}
+            onClick={async () => { setExporting(true); try { await api.exportCsv(filters, lang); } finally { setExporting(false); } }}>
+            ⬇ {t.downloadCsv}
+          </button>
+        )}
         {canCreate && <button className="cta" onClick={onNew}>{t.newCA}</button>}
       </div>
 

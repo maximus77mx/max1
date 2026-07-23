@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
 import { useI18n } from '../i18n';
 import { useAuth } from '../auth';
+import RecordExtras from './RecordExtras';
 
 function Field({ f, lang, value, error, onChange, readOnly }) {
   const label = lang === 'th' ? f.th : f.en;
@@ -35,13 +36,21 @@ function Field({ f, lang, value, error, onChange, readOnly }) {
   );
 }
 
-export default function RegisterForm({ meta, editId, onSaved, onCancel }) {
+export default function RegisterForm({ meta, editId, onSaved, onCancel, flash }) {
   const { lang, t } = useI18n();
   const { can } = useAuth();
   const readOnly = !!editId && !can('records.edit');
   const [form, setForm] = useState({});
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
+  const [userOpts, setUserOpts] = useState(null);
+
+  // Load the user list for the Owner picker (editors+ only).
+  useEffect(() => {
+    if (can('records.create') || can('records.edit')) {
+      api.userOptions().then(setUserOpts).catch(() => setUserOpts(null));
+    }
+  }, []); // eslint-disable-line
 
   // Attach dropdown options to each field from meta.lists
   const fields = useMemo(
@@ -94,8 +103,9 @@ export default function RegisterForm({ meta, editId, onSaved, onCancel }) {
   return (
     <form className="form-shell" onSubmit={submit}>
       <div className="form-head">
-        <h2>{readOnly ? t.view : editId ? t.editTitle : t.formTitle}</h2>
-        <div style={{ display: 'flex', gap: 10 }}>
+        <h2>{readOnly ? `${form.ca_id || ''}` : editId ? t.editTitle : t.formTitle}</h2>
+        <div style={{ display: 'flex', gap: 10 }} className="no-print">
+          {editId && <button type="button" className="cta ghost" onClick={() => window.print()}>🖨 {t.printPdf}</button>}
           <button type="button" className="cta ghost" onClick={onCancel}>{readOnly ? t.records : t.cancel}</button>
           {!readOnly && <button type="submit" className="cta" disabled={saving}>{saving ? t.saving : t.save}</button>}
         </div>
@@ -112,10 +122,26 @@ export default function RegisterForm({ meta, editId, onSaved, onCancel }) {
               {gfields.map((f) => (
                 <Field key={f.key} f={f} lang={lang} value={form[f.key]} error={errors[f.key]} onChange={change} readOnly={readOnly} />
               ))}
+              {g.key === 'action' && userOpts && (
+                <div className="field">
+                  <label htmlFor="owner_user_id">{t.ownerUser}</label>
+                  <select id="owner_user_id" value={form.owner_user_id ?? ''} disabled={readOnly}
+                    onChange={(e) => change('owner_user_id', e.target.value ? Number(e.target.value) : null)}>
+                    <option value="">{t.selectOwner}</option>
+                    {userOpts.map((u) => (
+                      <option key={u.id} value={u.id}>{u.name ? `${u.name} (${u.email})` : u.email}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
           </fieldset>
         );
       })}
+
+      {editId && form.id && (
+        <RecordExtras record={form} onRecordChanged={(updated) => setForm(updated)} flash={flash} />
+      )}
 
       {!readOnly && (
         <div className="form-actions">

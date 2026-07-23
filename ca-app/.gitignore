@@ -10,3 +10,6 @@ server/.env
 server/data/*.db
 server/data/*.db-shm
 server/data/*.db-wal
+
+# Uploaded evidence files
+server/data/uploads/

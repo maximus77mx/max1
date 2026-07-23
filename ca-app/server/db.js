@@ -86,7 +86,35 @@ CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT
 );
+CREATE TABLE IF NOT EXISTS ca_updates (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  record_id INTEGER NOT NULL,
+  ca_id TEXT,
+  user_email TEXT,
+  user_name TEXT,
+  kind TEXT NOT NULL DEFAULT 'note',        -- note | status | file
+  note TEXT,
+  old_status TEXT,
+  new_status TEXT,
+  ts TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_updates_record ON ca_updates(record_id);
+CREATE TABLE IF NOT EXISTS evidence (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  record_id INTEGER NOT NULL,
+  ca_id TEXT,
+  original_name TEXT NOT NULL,
+  stored_name TEXT NOT NULL,
+  size INTEGER,
+  mime TEXT,
+  uploaded_by TEXT,
+  ts TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_evidence_record ON evidence(record_id);
 `);
+
+// Upgrade older DBs: link a CA record to the user account responsible for it.
+try { db.exec('ALTER TABLE ca_records ADD COLUMN owner_user_id INTEGER'); } catch { /* already present */ }
 
 // Add purpose column if upgrading an older DB (ignore if it already exists).
 try { db.exec("ALTER TABLE invites ADD COLUMN purpose TEXT DEFAULT 'invite'"); } catch { /* already present */ }
