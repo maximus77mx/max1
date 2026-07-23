@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { useI18n } from '../i18n';
 import { useAuth, ROLE_BADGE } from '../auth';
+import RosterPicker from './RosterPicker';
 
 function RoleChip({ role }) {
   const rb = ROLE_BADGE[role] || { label: role, color: '#62625b' };
@@ -59,7 +60,22 @@ export default function Users({ flash }) {
 
   const manageable = (u) =>
     u.role !== 'super_admin' && u.id !== user.id &&
-    (user.role === 'super_admin' || ['editor', 'viewer'].includes(u.role));
+    (user.role === 'super_admin' || ['editor', 'owner', 'viewer'].includes(u.role));
+
+  // Linking a user to the org roster: self, super admin, or a manageable user.
+  const canLink = (u) => u.id === user.id || user.role === 'super_admin' || manageable(u);
+  const [linkDraft, setLinkDraft] = useState({}); // user id → typed text
+
+  const linkEmployee = async (u, emp) => {
+    await api.setUserEmployee(u.id, emp.employee_id);
+    setLinkDraft((p) => ({ ...p, [u.id]: undefined }));
+    flash(t.savedOk);
+    load();
+  };
+  const unlinkEmployee = async (u) => {
+    await api.setUserEmployee(u.id, null);
+    load();
+  };
 
   return (
     <div>
@@ -112,7 +128,7 @@ export default function Users({ flash }) {
         <div className="table-wrap">
           <table>
             <thead>
-              <tr><th>{t.email}</th><th>{t.name}</th><th>{t.role}</th><th>{t.status}</th><th>{t.lastLogin}</th><th>{t.actions}</th></tr>
+              <tr><th>{t.email}</th><th>{t.name}</th><th>{t.role}</th><th>{t.orgTeam}</th><th>{t.status}</th><th>{t.lastLogin}</th><th>{t.actions}</th></tr>
             </thead>
             <tbody>
               {data.users.map((u) => (
@@ -126,6 +142,29 @@ export default function Users({ flash }) {
                         {data.assignableRoles.map((r) => <option key={r} value={r}>{ROLE_BADGE[r].label}</option>)}
                       </select>
                     ) : <RoleChip role={u.role} />}
+                  </td>
+                  <td style={{ minWidth: 220 }}>
+                    {u.employee_id ? (
+                      <div className="org-cell">
+                        <div style={{ fontWeight: 700, fontSize: 12.5 }}>{u.emp_name}
+                          {canLink(u) && (
+                            <button type="button" className="link" style={{ marginLeft: 6, fontSize: 11 }} onClick={() => unlinkEmployee(u)}>✕</button>
+                          )}
+                        </div>
+                        <div style={{ fontSize: 11.5, color: 'var(--mute)' }}>
+                          {[u.division, u.section].filter(Boolean).join(' › ')}
+                        </div>
+                      </div>
+                    ) : canLink(u) ? (
+                      <RosterPicker
+                        value={linkDraft[u.id]}
+                        placeholder={t.linkEmployee}
+                        onChange={(v) => setLinkDraft((p) => ({ ...p, [u.id]: v }))}
+                        onPick={(emp) => linkEmployee(u, emp)}
+                      />
+                    ) : (
+                      <span style={{ color: 'var(--ash)' }}>—</span>
+                    )}
                   </td>
                   <td><span className={`badge st-${u.status === 'active' ? 'Closed' : u.status === 'invited' ? 'Inprogress' : 'Reopened'}`}>{t['st_' + u.status]}</span></td>
                   <td style={{ whiteSpace: 'nowrap', fontSize: 12, color: 'var(--mute)' }}>{u.last_login?.slice(0, 16) || '—'}</td>

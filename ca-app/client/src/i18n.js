@@ -153,6 +153,16 @@ export const STR = {
     uploadedBy: 'โดย',
     statusChanged: 'เปลี่ยนสถานะ',
     attachedFile: 'แนบไฟล์',
+    // org roster
+    orgTeam: 'หน่วยงาน / ทีม',
+    linkEmployee: 'พิมพ์ชื่อพนักงานเพื่อผูก...',
+    rosterHint: 'พิมพ์ชื่อพนักงาน (อย่างน้อย 2 ตัวอักษร)...',
+    rosterTitle: 'รายชื่อพนักงาน (Org Roster)',
+    rosterHintText: 'อัปโหลดไฟล์ Excel รายชื่อ True & Dtac เพื่ออัปเดตข้อมูลหน่วยงาน/ทีม — ใช้กับ autocomplete ช่อง Agent และการผูกผู้ใช้กับหน่วยงาน',
+    rosterCount: 'พนักงานในระบบ',
+    rosterUpload: 'อัปโหลดรายชื่อใหม่ (.xlsx)',
+    rosterUploaded: 'อัปเดตรายชื่อแล้ว ✓',
+    rosterUploadFailed: 'อัปโหลดไม่สำเร็จ — ตรวจสอบรูปแบบไฟล์',
   },
   en: {
     appTitle: 'QA Corrective Action',
@@ -297,6 +307,15 @@ export const STR = {
     uploadedBy: 'by',
     statusChanged: 'Status changed',
     attachedFile: 'Attached file',
+    orgTeam: 'Division / Team',
+    linkEmployee: 'Type employee name to link...',
+    rosterHint: 'Type employee name (min 2 chars)...',
+    rosterTitle: 'Employee roster (Org Roster)',
+    rosterHintText: 'Upload the True & Dtac roster Excel to refresh division/team data — powers Agent autocomplete and user-to-team linking',
+    rosterCount: 'employees loaded',
+    rosterUpload: 'Upload new roster (.xlsx)',
+    rosterUploaded: 'Roster updated ✓',
+    rosterUploadFailed: 'Upload failed — check the file format',
   },
 };
 

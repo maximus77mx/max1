@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import { useI18n } from '../i18n';
 
@@ -9,9 +9,31 @@ export default function Settings({ flash }) {
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testTo, setTestTo] = useState('');
+  const [roster, setRoster] = useState(null);
+  const [rosterBusy, setRosterBusy] = useState(false);
+  const rosterFileRef = useRef(null);
 
-  useEffect(() => { api.getMailSettings().then(setCfg); }, []);
+  useEffect(() => {
+    api.getMailSettings().then(setCfg);
+    api.rosterInfo().then(setRoster).catch(() => setRoster(null));
+  }, []);
   if (!cfg) return <div className="loading">Loading…</div>;
+
+  const onRosterFile = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setRosterBusy(true);
+    try {
+      const res = await api.uploadRoster(file);
+      flash(`${t.rosterUploaded} (${res.count})`);
+      api.rosterInfo().then(setRoster);
+    } catch {
+      flash(t.rosterUploadFailed, 'err');
+    } finally {
+      setRosterBusy(false);
+    }
+  };
 
   const set = (k, v) => setCfg((p) => ({ ...p, [k]: v }));
 
@@ -111,6 +133,27 @@ export default function Settings({ flash }) {
           <button type="submit" className="cta" disabled={saving}>{saving ? t.saving : t.saveSettings}</button>
         </div>
       </form>
+
+      <div className="fieldset" style={{ marginTop: 22 }}>
+        <span className="legend">{t.rosterTitle}</span>
+        <p style={{ color: 'var(--mute)', fontSize: 13, fontWeight: 600, marginTop: 4 }}>{t.rosterHintText}</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+          <div style={{ fontSize: 13.5 }}>
+            <b>{roster?.count ?? 0}</b> {t.rosterCount}
+            {roster?.filename && (
+              <span style={{ color: 'var(--ash)', fontSize: 12, marginLeft: 8 }}>
+                {roster.filename} · {roster.updated_at?.slice(0, 16).replace('T', ' ')}
+              </span>
+            )}
+          </div>
+          <div style={{ marginLeft: 'auto' }}>
+            <input type="file" accept=".xlsx,.xls" ref={rosterFileRef} style={{ display: 'none' }} onChange={onRosterFile} />
+            <button type="button" className="cta ghost" disabled={rosterBusy} onClick={() => rosterFileRef.current?.click()}>
+              📤 {rosterBusy ? t.uploading : t.rosterUpload}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

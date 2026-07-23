@@ -366,6 +366,48 @@ td.desc { max-width: 380px; }
 .tl-ts { font-size: 11px; color: var(--ash); }
 .tl-status { display: flex; gap: 6px; align-items: center; }
 
+/* ---------- Roster autocomplete ---------- */
+.roster-picker { position: relative; }
+.roster-picker input {
+  width: 100%;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  padding: 9px 12px;
+  font-size: 13.5px;
+  font-family: inherit;
+  color: var(--body);
+  background: var(--canvas);
+  outline: none;
+}
+.roster-picker input:focus { border-color: var(--primary); }
+.roster-dd {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  background: var(--canvas);
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
+  max-height: 280px;
+  overflow-y: auto;
+}
+.roster-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--hairline-soft);
+  padding: 8px 12px;
+}
+.roster-item:last-child { border-bottom: none; }
+.roster-item.hi, .roster-item:hover { background: var(--surface-card); }
+.ri-name { font-weight: 700; font-size: 13px; color: var(--ink); }
+.ri-id { font-weight: 500; font-size: 11px; color: var(--ash); margin-left: 6px; }
+.ri-org { font-size: 11.5px; color: var(--mute); margin-top: 1px; }
+
 /* ---------- Print (Save as PDF) ---------- */
 @media print {
   .topbar, .toolbar, .no-print, .form-actions, .row-actions { display: none !important; }

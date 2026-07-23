@@ -3,6 +3,7 @@ import { api } from '../api';
 import { useI18n } from '../i18n';
 import { useAuth } from '../auth';
 import RecordExtras from './RecordExtras';
+import RosterPicker from './RosterPicker';
 
 function Field({ f, lang, value, error, onChange, readOnly }) {
   const label = lang === 'th' ? f.th : f.en;
@@ -119,9 +120,31 @@ export default function RegisterForm({ meta, editId, onSaved, onCancel, flash })
           <fieldset className="fieldset" key={g.key}>
             <span className="legend">{lang === 'th' ? g.th : g.en}</span>
             <div className="grid-fields">
-              {gfields.map((f) => (
-                <Field key={f.key} f={f} lang={lang} value={form[f.key]} error={errors[f.key]} onChange={change} readOnly={readOnly} />
-              ))}
+              {gfields.map((f) =>
+                f.key === 'agent' ? (
+                  // Agent name autocompletes from the org roster and fills in
+                  // Sup (N-5), N-4, and section automatically.
+                  <div className={`field ${errors.agent ? 'err' : ''}`} key="agent">
+                    <label htmlFor="agent">{lang === 'th' ? f.th : f.en}</label>
+                    <RosterPicker
+                      id="agent"
+                      value={form.agent}
+                      disabled={readOnly}
+                      placeholder={t.rosterHint}
+                      onChange={(v) => change('agent', v)}
+                      onPick={(emp) => setForm((p) => ({
+                        ...p,
+                        agent: emp.fullname,
+                        sup: emp.n5_name || p.sup,
+                        n4: emp.n4_name || p.n4,
+                        seb_section: emp.section || p.seb_section,
+                      }))}
+                    />
+                  </div>
+                ) : (
+                  <Field key={f.key} f={f} lang={lang} value={form[f.key]} error={errors[f.key]} onChange={change} readOnly={readOnly} />
+                )
+              )}
               {g.key === 'action' && userOpts && (
                 <div className="field">
                   <label htmlFor="owner_user_id">{t.ownerUser}</label>
@@ -129,7 +152,9 @@ export default function RegisterForm({ meta, editId, onSaved, onCancel, flash })
                     onChange={(e) => change('owner_user_id', e.target.value ? Number(e.target.value) : null)}>
                     <option value="">{t.selectOwner}</option>
                     {userOpts.map((u) => (
-                      <option key={u.id} value={u.id}>{u.name ? `${u.name} (${u.email})` : u.email}</option>
+                      <option key={u.id} value={u.id}>
+                        {(u.name ? `${u.name} (${u.email})` : u.email) + (u.section ? ` · ${u.section}` : '')}
+                      </option>
                     ))}
                   </select>
                 </div>

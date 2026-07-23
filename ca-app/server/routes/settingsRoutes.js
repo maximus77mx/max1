@@ -1,8 +1,28 @@
 import express from 'express';
+import multer from 'multer';
+import * as XLSX from 'xlsx';
 import { authRequired, requirePerm } from '../auth.js';
-import { getMailConfigSafe, saveMailConfig } from '../settings.js';
+import { getMailConfigSafe, saveMailConfig, getSetting, setSetting } from '../settings.js';
 import { sendTestEmail } from '../mailer.js';
 import { logAudit } from '../audit.js';
+import { replaceRoster } from '../db.js';
+
+const memUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+
+// Map the True/Dtac roster Excel headers → org_roster columns.
+const HEADER_MAP = {
+  'EMPLOYEE_ID(TEXT)': 'employee_id',
+  EMPLOYEE_ID: 'employee_id_num',
+  FULLNAME: 'fullname',
+  'N5-Name': 'n5_name',
+  'N-4 Name': 'n4_name',
+  'N-3 Name': 'n3_name',
+  DIVISION_NAME: 'division',
+  SECTION_NAME: 'section',
+  SUB_SECTION_NAME: 'sub_section',
+  AGENT_TYPE: 'agent_type',
+  EMPLOYEE_STATUS: 'emp_status',
+};
 
 export default function settingsRoutes(db) {
   const r = express.Router();
@@ -33,6 +53,49 @@ export default function settingsRoutes(db) {
     } catch (e) {
       res.status(400).json({ error: e.message === 'smtp_not_configured' ? 'smtp_not_configured' : 'send_failed', detail: e.message });
     }
+  });
+
+  // GET /api/settings/roster — roster status (count, last upload)
+  r.get('/roster', (_req, res) => {
+    const count = db.prepare('SELECT COUNT(*) AS n FROM org_roster').get().n;
+    res.json({
+      count,
+      updated_at: getSetting(db, 'roster.updated_at'),
+      filename: getSetting(db, 'roster.filename'),
+    });
+  });
+
+  // POST /api/settings/roster — upload a new roster Excel (replaces the table)
+  r.post('/roster', memUpload.single('file'), (req, res) => {
+    if (!req.file) return res.status(400).json({ error: 'no_file' });
+    let rows;
+    try {
+      const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const raw = XLSX.utils.sheet_to_json(ws, { defval: null });
+      rows = raw.map((rec) => {
+        const out = {};
+        for (const [h, key] of Object.entries(HEADER_MAP)) {
+          if (rec[h] !== undefined && rec[h] !== null && key !== 'employee_id_num') {
+            out[key] = String(rec[h]).trim() || null;
+          }
+        }
+        // Fall back to the numeric EMPLOYEE_ID column if the text one is absent.
+        if (!out.employee_id && rec.EMPLOYEE_ID != null) out.employee_id = String(rec.EMPLOYEE_ID).trim();
+        return out;
+      }).filter((x) => x.employee_id || x.fullname);
+    } catch (e) {
+      return res.status(400).json({ error: 'parse_failed', detail: e.message });
+    }
+    if (!rows.length || !rows.some((x) => x.fullname)) {
+      return res.status(400).json({ error: 'no_valid_rows' });
+    }
+    const n = replaceRoster(rows);
+    const original = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+    setSetting(db, 'roster.updated_at', new Date().toISOString());
+    setSetting(db, 'roster.filename', original);
+    logAudit(db, req.user, 'settings.roster_upload', { entity: 'settings', ref: original, detail: `${n} employees` });
+    res.json({ ok: true, count: n });
   });
 
   return r;

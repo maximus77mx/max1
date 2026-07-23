@@ -115,6 +115,63 @@ CREATE INDEX IF NOT EXISTS idx_evidence_record ON evidence(record_id);
 
 // Upgrade older DBs: link a CA record to the user account responsible for it.
 try { db.exec('ALTER TABLE ca_records ADD COLUMN owner_user_id INTEGER'); } catch { /* already present */ }
+// Link a user account to an employee in the org roster.
+try { db.exec('ALTER TABLE users ADD COLUMN employee_id TEXT'); } catch { /* already present */ }
+
+// ---- Org roster (division / section / team per employee) ----
+db.exec(`
+CREATE TABLE IF NOT EXISTS org_roster (
+  employee_id TEXT PRIMARY KEY,
+  fullname TEXT,
+  n5_name TEXT,
+  n4_name TEXT,
+  n3_name TEXT,
+  division TEXT,
+  section TEXT,
+  sub_section TEXT,
+  agent_type TEXT,
+  emp_status TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_roster_name ON org_roster(fullname);
+`);
+
+export function replaceRoster(records) {
+  const ins = db.prepare(`INSERT OR REPLACE INTO org_roster
+    (employee_id, fullname, n5_name, n4_name, n3_name, division, section, sub_section, agent_type, emp_status)
+    VALUES (@employee_id, @fullname, @n5_name, @n4_name, @n3_name, @division, @section, @sub_section, @agent_type, @emp_status)`);
+  const txn = db.transaction((rows) => {
+    db.prepare('DELETE FROM org_roster').run();
+    let n = 0;
+    for (const r of rows) {
+      if (!r.employee_id && !r.fullname) continue;
+      ins.run({
+        employee_id: r.employee_id || `NAME:${r.fullname}`,
+        fullname: r.fullname || null,
+        n5_name: r.n5_name || null,
+        n4_name: r.n4_name || null,
+        n3_name: r.n3_name || null,
+        division: r.division || null,
+        section: r.section || null,
+        sub_section: r.sub_section || null,
+        agent_type: r.agent_type || null,
+        emp_status: r.emp_status || null,
+      });
+      n++;
+    }
+    return n;
+  });
+  return txn(records);
+}
+
+// Seed roster once from data/org.json if the table is empty.
+const rosterCount = db.prepare('SELECT COUNT(*) AS n FROM org_roster').get().n;
+if (rosterCount === 0) {
+  const orgPath = path.join(DATA_DIR, 'org.json');
+  if (fs.existsSync(orgPath)) {
+    const n = replaceRoster(JSON.parse(fs.readFileSync(orgPath, 'utf-8')));
+    console.log(`[db] Seeded org roster: ${n} employees`);
+  }
+}
 
 // Add purpose column if upgrading an older DB (ignore if it already exists).
 try { db.exec("ALTER TABLE invites ADD COLUMN purpose TEXT DEFAULT 'invite'"); } catch { /* already present */ }

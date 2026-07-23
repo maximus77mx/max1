@@ -50,6 +50,27 @@ export const api = {
   getMailSettings: () => req('/settings/mail'),
   saveMailSettings: (data) => req('/settings/mail', { method: 'PUT', body: JSON.stringify(data) }),
   testMail: (to) => req('/settings/mail/test', { method: 'POST', body: JSON.stringify({ to }) }),
+  // org roster
+  rosterSearch: (q) => req(`/roster/search?q=${encodeURIComponent(q)}`),
+  rosterInfo: () => req('/settings/roster'),
+  uploadRoster: async (file) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    const res = await fetch(`${BASE}/settings/roster`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: fd,
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      const err = new Error(body.error || 'Upload failed');
+      err.body = body;
+      throw err;
+    }
+    return res.json();
+  },
+  setUserEmployee: (id, employee_id) =>
+    req(`/users/${id}/employee`, { method: 'PATCH', body: JSON.stringify({ employee_id }) }),
   // owner workflow / evidence / export
   userOptions: () => req('/user-options'),
   progress: (id, data) => req(`/records/${id}/progress`, { method: 'PATCH', body: JSON.stringify(data) }),

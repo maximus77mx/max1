@@ -48,13 +48,28 @@ api.get('/meta', (_req, res) => {
   res.json({ fields: FIELDS, groups: GROUPS, lists: LISTS, sla: SLA_DAYS });
 });
 
-// --- User options for the Owner picker (editors+ only) ---
+// --- User options for the Owner picker (editors+ only), with org info ---
 api.get('/user-options', (req, res) => {
   if (!can(req.user.role, 'records.create') && !can(req.user.role, 'records.edit'))
     return res.status(403).json({ error: 'forbidden' });
   const rows = db
-    .prepare("SELECT id, email, name, role FROM users WHERE status != 'disabled' ORDER BY name, email")
+    .prepare(`SELECT u.id, u.email, u.name, u.role, r.division, r.section, r.sub_section
+              FROM users u LEFT JOIN org_roster r ON r.employee_id = u.employee_id
+              WHERE u.status != 'disabled' ORDER BY u.name, u.email`)
     .all();
+  res.json(rows);
+});
+
+// --- Org roster search (autocomplete: agent fill-in + user linking) ---
+api.get('/roster/search', requirePerm('records.view'), (req, res) => {
+  const q = (req.query.q || '').trim();
+  if (q.length < 2) return res.json([]);
+  const rows = db
+    .prepare(`SELECT employee_id, fullname, n5_name, n4_name, n3_name, division, section, sub_section, agent_type
+              FROM org_roster
+              WHERE fullname LIKE @q OR employee_id LIKE @q
+              ORDER BY fullname LIMIT 20`)
+    .all({ q: `%${q}%` });
   res.json(rows);
 });
 

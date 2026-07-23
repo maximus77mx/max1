@@ -12,10 +12,13 @@ export default function userRoutes(db) {
   const r = express.Router();
   r.use(authRequired(db), requirePerm('users.manage'));
 
-  // GET /api/users — list users + pending invites
+  // GET /api/users — list users + pending invites (with org info from roster)
   r.get('/', (req, res) => {
     const users = db
-      .prepare('SELECT id, email, name, role, status, created_at, last_login FROM users ORDER BY id')
+      .prepare(`SELECT u.id, u.email, u.name, u.role, u.status, u.created_at, u.last_login, u.employee_id,
+                       r.fullname AS emp_name, r.division, r.section, r.sub_section
+                FROM users u LEFT JOIN org_roster r ON r.employee_id = u.employee_id
+                ORDER BY u.id`)
       .all();
     const invites = db
       .prepare("SELECT id, email, role, invited_by, created_at, expires_at FROM invites WHERE accepted_at IS NULL ORDER BY id DESC")
@@ -85,6 +88,22 @@ export default function userRoutes(db) {
     const link = `${inviteBase(req)}/?invite=${token}`;
     const result = await sendInviteEmail(db, { to: target.email, link, inviterName: req.user.name || req.user.email, role: target.role });
     res.json({ delivered: result.delivered, link: result.delivered ? undefined : link });
+  });
+
+  // PATCH /api/users/:id/employee  { employee_id | null } — link user to org roster
+  r.patch('/:id/employee', (req, res) => {
+    const target = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
+    if (!target) return res.status(404).json({ error: 'not_found' });
+    const allowed = target.id === req.user.id || req.user.role === 'super_admin' || canManageUser(req.user.role, target.role);
+    if (!allowed) return res.status(403).json({ error: 'forbidden' });
+    const empId = req.body.employee_id || null;
+    if (empId) {
+      const emp = db.prepare('SELECT employee_id, fullname FROM org_roster WHERE employee_id = ?').get(empId);
+      if (!emp) return res.status(400).json({ error: 'employee_not_found' });
+    }
+    db.prepare('UPDATE users SET employee_id = ? WHERE id = ?').run(empId, target.id);
+    logAudit(db, req.user, 'user.link_employee', { entity: 'user', ref: target.email, detail: empId || '(cleared)' });
+    res.json({ ok: true });
   });
 
   // PATCH /api/users/:id/role  { role }
