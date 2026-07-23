@@ -410,6 +410,14 @@ td.desc { max-width: 380px; }
 .roster-add { color: var(--primary); font-weight: 800; font-size: 12.5px; background: var(--surface-soft); }
 .roster-add:hover { background: #fff0f2; }
 
+/* ---------- Segmented toggle ---------- */
+.seg { display: inline-flex; background: var(--surface-card); border: 1px solid var(--hairline); border-radius: 999px; padding: 3px; gap: 2px; }
+.seg button {
+  border: none; background: transparent; color: var(--mute);
+  font-weight: 800; font-size: 12px; padding: 5px 14px; border-radius: 999px;
+}
+.seg button.active { background: var(--ink); color: #fff; }
+
 /* ---------- Print (Save as PDF) ---------- */
 @media print {
   .topbar, .toolbar, .no-print, .form-actions, .row-actions { display: none !important; }

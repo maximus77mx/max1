@@ -16,12 +16,15 @@ function Kpi({ val, label, kind }) {
 export default function Dashboard() {
   const { t } = useI18n();
   const [s, setS] = useState(null);
+  const [teamMode, setTeamMode] = useState('n4');
 
   useEffect(() => {
     api.stats().then(setS);
   }, []);
 
   if (!s) return <div className="loading">Loading…</div>;
+
+  const teams = (teamMode === 'n4' ? s.teamN4 : s.teamN3) || [];
 
   const errData = toData(s.byErrorType);
   const priData = toData(s.byPriority);
@@ -65,6 +68,45 @@ export default function Dashboard() {
         <div className="panel">
           <h3>{t.byLever}</h3>
           <HBar data={toData(s.byLever)} color="#1f5bb5" />
+        </div>
+
+        <div className="panel wide">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+            <h3 style={{ margin: 0 }}>{t.byTeam}</h3>
+            <div className="seg">
+              <button className={teamMode === 'n4' ? 'active' : ''} onClick={() => setTeamMode('n4')}>N-4</button>
+              <button className={teamMode === 'n3' ? 'active' : ''} onClick={() => setTeamMode('n3')}>N-3</button>
+            </div>
+            {s.teamUnattributed > 0 && (
+              <span style={{ fontSize: 12, color: 'var(--ash)', fontWeight: 600 }}>
+                · {t.unattributed}: {s.teamUnattributed}
+              </span>
+            )}
+          </div>
+          {teams.length === 0 ? (
+            <div className="empty">{t.noData}</div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 24, alignItems: 'start' }}>
+              <HBar data={teams.map((x) => ({ name: x.name, value: x.total }))} color="#262622" />
+              <div className="table-wrap" style={{ maxHeight: 340, overflowY: 'auto' }}>
+                <table>
+                  <thead>
+                    <tr><th>{t.teamCol}</th><th>{t.total}</th><th>{t.openCol}</th><th>{t.overdue}</th></tr>
+                  </thead>
+                  <tbody>
+                    {teams.map((x) => (
+                      <tr key={x.name}>
+                        <td style={{ fontWeight: 700, fontSize: 12.5 }}>{x.name}</td>
+                        <td>{x.total}</td>
+                        <td>{x.open}</td>
+                        <td style={{ color: x.overdue ? '#e60023' : 'var(--ash)', fontWeight: 800 }}>{x.overdue}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="panel wide">

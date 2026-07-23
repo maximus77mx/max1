@@ -388,7 +388,42 @@ api.get('/stats', requirePerm('dashboard.view'), (req, res) => {
 
   overdue.sort((a, b) => b.overdue_days - a.overdue_days);
 
+  // --- Team breakdown (N-4 / N-3) ---
+  // Attribution: agent name matched against the roster wins; otherwise the
+  // N-4 typed on the record; N-3 inferred from the roster's N-4 → N-3 mapping.
+  const norm = (s) => String(s).trim().toLowerCase().replace(/\s+/g, ' ');
+  const rosterRows = db.prepare('SELECT fullname, n3_name, n4_name FROM org_roster').all();
+  const empByName = new Map();
+  const n4ToN3 = new Map();
+  for (const e of rosterRows) {
+    if (e.fullname) empByName.set(norm(e.fullname), e);
+    if (e.n4_name && e.n3_name && !n4ToN3.has(e.n4_name)) n4ToN3.set(e.n4_name, e.n3_name);
+  }
+  const teamN4 = {};
+  const teamN3 = {};
+  let teamUnattributed = 0;
+  const bump = (m, k, rec, over) => {
+    const t = m[k] || (m[k] = { name: k, total: 0, open: 0, overdue: 0 });
+    t.total++;
+    if (isOpen(rec)) t.open++;
+    if (over) t.overdue++;
+  };
+  for (const r of rows) {
+    const emp = r.agent ? empByName.get(norm(r.agent)) : null;
+    const n4 = emp?.n4_name || (r.n4 ? String(r.n4).trim() : null);
+    const n3 = emp?.n3_name || (n4 ? n4ToN3.get(n4) || null : null);
+    const due = parse(r.due_date);
+    const over = isOpen(r) && due && Math.round((today - due) / 86400000) > 0;
+    if (n4) bump(teamN4, n4, r, over);
+    if (n3) bump(teamN3, n3, r, over);
+    if (!n4 && !n3 && r.level === 'Individual') teamUnattributed++;
+  }
+  const topTeams = (m) => Object.values(m).sort((a, b) => b.total - a.total).slice(0, 20);
+
   res.json({
+    teamN4: topTeams(teamN4),
+    teamN3: topTeams(teamN3),
+    teamUnattributed,
     total: rows.length,
     byStatus: countBy(rows, 'status'),
     byLevel: countBy(rows, 'level'),

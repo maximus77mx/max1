@@ -172,6 +172,10 @@ export const STR = {
     empAddFailed: 'เพิ่มไม่สำเร็จ',
     empAdded: 'เพิ่มพนักงานแล้ว ✓',
     manualEntries: 'พนักงานที่เพิ่มเอง (ไม่หายตอนอัปโหลดไฟล์ใหม่)',
+    byTeam: 'แยกตามทีม',
+    teamCol: 'ทีม',
+    openCol: 'ยังเปิดอยู่',
+    unattributed: 'ระบุทีมไม่ได้',
   },
   en: {
     appTitle: 'QA Corrective Action',
@@ -334,6 +338,10 @@ export const STR = {
     empAddFailed: 'Add failed',
     empAdded: 'Employee added ✓',
     manualEntries: 'Manually added (kept when a new file is uploaded)',
+    byTeam: 'By team',
+    teamCol: 'Team',
+    openCol: 'Open',
+    unattributed: 'Unattributed',
   },
 };
 
