@@ -68,6 +68,14 @@ thaiflood dashboard --collect               # ดึงข้อมูลให�
 
 จากนั้นแชร์ลิงก์ `https://maximus77mx.github.io/max1/` ให้ทีม
 
+#### ถ้า GitHub ไม่รันตามเวลา (ใช้ตัวตั้งเวลาภายนอก)
+
+GitHub ไม่รับประกันเวลาของ `schedule` บาง repo ไม่ถูกรันเลย ใช้บริการภายนอก (เช่น cron-job.org) สั่งรันทุกชั่วโมงแทน:
+1. สร้าง fine-grained token: GitHub → Settings → Developer settings → Fine-grained tokens → เลือกเฉพาะ repo นี้ → Permissions: **Actions: Read and write**
+2. ตั้งงานรายชั่วโมงให้ส่ง `POST https://api.github.com/repos/<owner>/<repo>/actions/workflows/flood-dashboard.yml/dispatches`
+   - Headers: `Authorization: Bearer <token>`, `Accept: application/vnd.github+json`
+   - Body: `{"ref":"master","inputs":{"respect_intervals":"true"}}` (ดึงเฉพาะแหล่งที่ถึงรอบ)
+
 หมายเหตุ: GitHub Pages ของ repo public เปิดดูได้ทุกคนที่มีลิงก์ (key ไม่หลุด เพราะอยู่ใน Secret)
 ถ้าต้องจำกัดเฉพาะทีม ใช้ Cloudflare Pages + Cloudflare Access หรือเซิร์ฟเวอร์ภายในที่รัน `thaiflood dashboard` ด้วย cron แทน
 และ runner ของ GitHub อยู่ต่างประเทศ ถ้าเว็บหน่วยงานไหนบล็อก IP ต่างประเทศ แหล่งนั้นจะดึงไม่ได้ (ดู log ในแท็บ Actions)

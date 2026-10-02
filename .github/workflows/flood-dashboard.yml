@@ -18,6 +18,9 @@ on:
       days:
         description: "ฝังข้อมูลย้อนหลังกี่วันในหน้า dashboard"
         default: "7"
+      respect_intervals:
+        description: "ดึงเฉพาะแหล่งที่ถึงรอบ (ใช้กับตัวตั้งเวลาภายนอก เช่น cron-job.org)"
+        default: "false"
 
 permissions:
   contents: read
@@ -63,11 +66,15 @@ jobs:
         # แหล่งที่ล่มบางแหล่งไม่ควรทำให้หน้าเว็บไม่อัปเดต
         # แต่ละแหล่งดึงตามรอบของตัวเอง (ThaiWater ทุกชั่วโมง, GISTDA ทุก 12 ชม. ฯลฯ) — กดรันเองจะดึงทุกแหล่ง
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then thaiflood collect; else thaiflood collect --respect-intervals; fi \
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.respect_intervals }}" != "true" ]; then
+            thaiflood collect
+          else
+            thaiflood collect --respect-intervals
+          fi \
             || echo "::warning::ทุกแหล่งดึงข้อมูลไม่สำเร็จในรอบนี้"
 
       - name: Probe GISTDA (diagnostic)
-        if: github.event_name == 'workflow_dispatch'  # เฉพาะตอนกดรันเอง ไม่ยิงทุกชั่วโมง
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.respect_intervals != 'true'  # เฉพาะตอนกดรันเอง
         continue-on-error: true
         env:
           GISTDA_API_KEY: ${{ secrets.GISTDA_API_KEY }}
