@@ -3,6 +3,8 @@
 # ตั้งค่าครั้งเดียว:
 #   1. Settings → Secrets and variables → Actions → New repository secret
 #        GISTDA_API_KEY  (และ TMD_API_TOKEN ถ้ามี)
+#      SPHERE_API_KEY  (แผนที่ภาษาไทยจาก GISTDA sphere — key นี้จะอยู่ในหน้าเว็บ ควรจำกัดโดเมน)
+#      ชั้นน้ำท่วม WMS (ถ้ามี): Settings → Variables → SPHERE_FLOOD_WMS_URL, SPHERE_FLOOD_WMS_LAYERS
 #   2. Settings → Pages → Build and deployment → Source: GitHub Actions
 #   3. merge ไฟล์นี้เข้า default branch (schedule ทำงานเฉพาะบน default branch)
 #   4. Actions → "Flood dashboard" → Run workflow เพื่อรันครั้งแรก
@@ -65,10 +67,26 @@ jobs:
         run: thaiflood prune --keep-days "$KEEP_DAYS"
 
       - name: Build dashboard
+        env:
+          SPHERE_API_KEY: ${{ secrets.SPHERE_API_KEY }}
+          SPHERE_FLOOD_WMS_URL: ${{ vars.SPHERE_FLOOD_WMS_URL }}
+          SPHERE_FLOOD_WMS_LAYERS: ${{ vars.SPHERE_FLOOD_WMS_LAYERS }}
         run: |
           mkdir -p site
           thaiflood dashboard site/index.html --days "${{ github.event.inputs.days || '7' }}"
           thaiflood stats
+
+      # ตรวจว่า URL แผนที่ sphere ใช้ได้จริง (ดูผลใน log — ไม่ทำให้ job ล้ม)
+      - name: Check sphere basemap
+        env:
+          SPHERE_API_KEY: ${{ secrets.SPHERE_API_KEY }}
+        run: |
+          [ -n "$SPHERE_API_KEY" ] || { echo "ยังไม่ได้ตั้ง SPHERE_API_KEY — ข้าม"; exit 0; }
+          for spec in sphere_streets:png thailand_images:jpeg sphere_hybrid:jpeg; do
+            layer=${spec%%:*}; ext=${spec##*:}
+            url="https://basemap.sphere.gistda.or.th/tiles/$layer/EPSG3857/6/50/30.$ext?key=$SPHERE_API_KEY"
+            echo "$layer: $(curl -s -o /dev/null -m 20 -w '%{http_code} %{content_type}' -H 'Referer: https://${{ github.repository_owner }}.github.io/' "$url")"
+          done
 
       - name: Save history
         if: always()

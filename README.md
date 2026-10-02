@@ -11,7 +11,7 @@
 | ปภ. (disaster.go.th) | `disaster` | รายงานสถานการณ์: จำนวนจังหวัด/อำเภอ/ตำบล/หมู่บ้าน/ครัวเรือน/ผู้เสียชีวิต/บาดเจ็บ | 12 ชม. | – |
 | สทนช. (onwr.go.th) | `onwr` | ประกาศเตือนภัย + จังหวัดเสี่ยง | 3 ชม. | – |
 | สำนักการระบายน้ำ กทม. | `bma` | จุดน้ำท่วมขังรายจุด (ซม.) | 30 นาที | – |
-| กรมอุตุนิยมวิทยา | `tmd` | พยากรณ์ฝนรายชั่วโมง 48 ชม. + ภาพเรดาร์ composite | 3 ชม. | `TMD_API_TOKEN` (เฉพาะพยากรณ์) |
+| กรมอุตุนิยมวิทยา | `tmd` | พยากรณ์ฝนรายชั่วโมง 48 ชม. (+ ภาพเรดาร์ ถ้าตั้ง `TMD_RADAR_URL`) | 3 ชม. | `TMD_API_TOKEN` (เฉพาะพยากรณ์) |
 
 ## ติดตั้ง
 
@@ -71,6 +71,17 @@ thaiflood dashboard --collect               # ดึงข้อมูลให�
 หมายเหตุ: GitHub Pages ของ repo public เปิดดูได้ทุกคนที่มีลิงก์ (key ไม่หลุด เพราะอยู่ใน Secret)
 ถ้าต้องจำกัดเฉพาะทีม ใช้ Cloudflare Pages + Cloudflare Access หรือเซิร์ฟเวอร์ภายในที่รัน `thaiflood dashboard` ด้วย cron แทน
 และ runner ของ GitHub อยู่ต่างประเทศ ถ้าเว็บหน่วยงานไหนบล็อก IP ต่างประเทศ แหล่งนั้นจะดึงไม่ได้ (ดู log ในแท็บ Actions)
+
+### แผนที่ GISTDA sphere (ภาษาไทย) และชั้นน้ำท่วม
+
+ตั้ง `SPHERE_API_KEY` แล้ว dashboard จะใช้แผนที่จาก GISTDA sphere เป็นค่าเริ่มต้น (แผนที่ถนน / ภาพดาวเทียมไทย / ภาพดาวเทียม + ถนน)
+สลับได้จากปุ่มมุมขวาบนของแผนที่ ถ้าโหลด tile ไม่ได้ ระบบจะสลับไปใช้แผนที่สำรอง (CARTO) ให้เอง
+
+- รูปแบบ URL ของ tile ตั้งได้ที่ `SPHERE_TILE_URL` (ใช้ `{layer}`, `{ext}`, `{key}`, `{z}/{x}/{y}`)
+- ชั้นน้ำท่วมแบบ WMS: ตั้ง `SPHERE_FLOOD_WMS_URL` และ `SPHERE_FLOOD_WMS_LAYERS` ตามเอกสารของ sphere/GISTDA
+- **key นี้จะอยู่ในหน้าเว็บ** (เบราว์เซอร์เป็นผู้โหลดแผนที่) ควรจำกัดโดเมนที่ใช้ key ได้ในหน้าจัดการ key ของ sphere
+- บน GitHub Actions: เก็บ `SPHERE_API_KEY` เป็น Secret และ `SPHERE_FLOOD_WMS_URL` / `SPHERE_FLOOD_WMS_LAYERS` เป็น Variables
+  ขั้น "Check sphere basemap" ใน log จะบอกว่า URL ของแผนที่ตอบกลับอะไร
 
 ### ข้อมูลย้อนหลัง (Historical)
 

@@ -158,13 +158,25 @@ class ThaiWaterSource(Source):
             ("rain_24h", self.settings.thaiwater_rain_path, parse_rain),
             ("dam", self.settings.thaiwater_dam_path, parse_dam),
         )
-        for label, path, parser in jobs:
-            try:
-                payload = self.get_json(self._url(path))
+        for label, paths, parser in jobs:
+            tried = []
+            for path in [p.strip() for p in paths.split(",") if p.strip()]:
+                try:
+                    payload = self.get_json(self._url(path))
+                except Exception as exc:  # แหล่งย่อยหนึ่งพังไม่ควรทำให้ทั้งรอบพัง
+                    tried.append(f"{path}: {exc}")
+                    continue
+                obs = parser(payload)
+                if not obs:
+                    keys = list(payload)[:8] if isinstance(payload, dict) else type(payload).__name__
+                    tried.append(f"{path}: ตอบกลับแต่ไม่พบข้อมูล (keys={keys})")
+                    continue
                 result.raw[f"{label}.json"] = payload
-                result.observations.extend(parser(payload))
-            except Exception as exc:  # แหล่งย่อยหนึ่งพังไม่ควรทำให้ทั้งรอบพัง
-                result.errors.append(f"{label}: {exc}")
+                result.observations.extend(obs)
+                tried = []
+                break
+            if tried:
+                result.errors.append(f"{label}: " + " | ".join(tried))
         return result
 
     def waterlevel_history(self, station_id: str, start: str, end: str) -> list[Observation]:

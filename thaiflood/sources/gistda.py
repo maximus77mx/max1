@@ -79,6 +79,7 @@ class GistdaSource(Source):
     name = "gistda"
     description = "GISTDA — พื้นที่น้ำท่วมจากดาวเทียม (รายวัน, GeoJSON)"
     page_size = 1000
+    _last_page: dict[str, Any] | None = None
 
     def fetch(self, period: str = "1day") -> dict[str, Any]:
         if period not in PERIODS:
@@ -91,7 +92,8 @@ class GistdaSource(Source):
         offset = 0
         while True:
             page = self.get_json(url, headers=headers, params={"limit": self.page_size, "offset": offset})
-            batch = page.get("features") or []
+            self._last_page = page if isinstance(page, dict) else {"type": type(page).__name__}
+            batch = (page.get("features") or page.get("data") or []) if isinstance(page, dict) else []
             features.extend(batch)
             if len(batch) < self.page_size:
                 break
@@ -104,6 +106,9 @@ class GistdaSource(Source):
             payload = self.fetch(period)
             result.raw[f"flood_{period}.geojson"] = payload  # เก็บ GeoJSON เต็มไว้ทำแผนที่
             result.observations = parse_flood(payload, period)
+            if not result.observations:
+                meta = {k: v for k, v in self._last_page.items() if k != "features"} if self._last_page else {}
+                result.errors.append(f"API ตอบกลับ 0 พื้นที่ ({period}) — meta={str(meta)[:300]}")
         except Exception as exc:
             result.errors.append(str(exc))
         return result

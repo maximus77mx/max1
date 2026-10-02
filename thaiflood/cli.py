@@ -165,7 +165,7 @@ def cmd_dashboard(args: argparse.Namespace, settings: Settings) -> int:
     with _store(settings) as store:
         if args.collect:
             collect(None, settings, store)
-        out = write_dashboard(store, Path(args.output or default_output_name()), days=args.days, province=args.province)
+        out = write_dashboard(store, Path(args.output or default_output_name()), days=args.days, province=args.province, settings=settings)
     print(f"สร้าง dashboard: {out.resolve()} ({out.stat().st_size / 1024:,.0f} KB) — เปิดด้วยเบราว์เซอร์ได้เลย")
     return 0
 

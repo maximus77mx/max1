@@ -338,10 +338,35 @@ function initMap() {
     return;
   }
   map = L.map("map", { preferCanvas: true, zoomControl: true }).setView([13.2, 101.0], 6);
+  map.attributionControl.addAttribution("ข้อมูล: สสน., GISTDA, ปภ., สทนช., กทม., กรมอุตุฯ");
   tileLayer = L.tileLayer(tileUrl(), {
     maxZoom: 18, subdomains: "abcd",
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a> · ข้อมูล: สสน., GISTDA, ปภ., สทนช., กทม., กรมอุตุฯ',
-  }).addTo(map);
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+  });
+  const MAPCFG = DATA.map || {};
+  const bases = {}, overlays = {};
+  if (MAPCFG.sphere) {
+    // แผนที่ภาษาไทยจาก GISTDA sphere — ถ้าโหลด tile ไม่ได้ จะสลับไปแผนที่สำรองให้เอง
+    for (const [label, layer, ext] of [["Sphere แผนที่ถนน", "sphere_streets", "png"], ["Sphere ภาพดาวเทียมไทย", "thailand_images", "jpeg"], ["Sphere ภาพดาวเทียม + ถนน", "sphere_hybrid", "jpeg"]]) {
+      const t = L.tileLayer(MAPCFG.sphere.url, { layer, ext, key: MAPCFG.sphere.key, maxZoom: 18, attribution: '&copy; <a href="https://sphere.gistda.or.th/">GISTDA sphere</a>' });
+      let ok = 0, bad = 0;
+      t.on("tileload", () => ok++);
+      t.on("tileerror", () => {
+        if (++bad >= 6 && ok === 0 && map.hasLayer(t)) {
+          map.removeLayer(t); tileLayer.addTo(map);
+          map.attributionControl.addAttribution("โหลดแผนที่ sphere ไม่ได้ — ใช้แผนที่สำรอง");
+        }
+      });
+      bases[label] = t;
+    }
+  }
+  bases["แผนที่สำรอง (CARTO)"] = tileLayer;
+  (MAPCFG.sphere ? bases["Sphere แผนที่ถนน"] : tileLayer).addTo(map);
+  if (MAPCFG.flood_wms) {
+    const w = MAPCFG.flood_wms;
+    overlays["ชั้นน้ำท่วม GISTDA (WMS)"] = L.tileLayer.wms(w.url, { layers: w.layers, format: "image/png", transparent: true, opacity: .7, attribution: "GISTDA", ...(w.key ? { key: w.key } : {}) });
+  }
+  if (Object.keys(bases).length > 1 || Object.keys(overlays).length) L.control.layers(bases, overlays, { position: "topright" }).addTo(map);
   for (const [k] of LAYER_DEFS) groups[k] = L.layerGroup();
   groups.flood_poly = L.layerGroup();
 }

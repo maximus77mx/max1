@@ -122,3 +122,28 @@ def test_prune_removes_old_rows(tmp_path):
         (tmp_path / "raw" / "thaiwater" / "2000-01-01").mkdir(parents=True)
         assert store.prune(30) == (1, 1)
         assert [r["value"] for r in store.query_observations()] == [2]
+
+
+def test_thaiwater_dam_falls_back_to_next_path():
+    class Session(FakeSession):
+        routes = {"waterlevel_load": "thaiwater_waterlevel.json", "rain_24h": "thaiwater_rain.json",
+                  "thailand_main": "thaiwater_dam.json"}
+
+    settings = Settings()
+    settings.thaiwater_dam_path = "/public/dam_daily,/public/thailand_main"
+    result = ThaiWaterSource(settings, session=Session()).collect()
+    assert not result.errors
+    assert any(o.kind == "dam_storage" for o in result.observations)
+
+
+def test_gistda_empty_reports_meta():
+    from thaiflood.sources.gistda import GistdaSource
+
+    class Session:
+        def get(self, url, **kw):
+            return FakeResponse({"type": "FeatureCollection", "features": [], "numberMatched": 0})
+
+    settings = Settings()
+    settings.gistda_api_key = "k"
+    result = GistdaSource(settings, session=Session()).collect()
+    assert result.observations == [] and "numberMatched" in result.errors[0]
