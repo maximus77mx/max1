@@ -29,10 +29,13 @@ def _rows(payload: Any, *keys: str) -> list[dict[str, Any]]:
         return []
     for key in keys:
         node = payload.get(key)
-        if isinstance(node, dict) and isinstance(node.get("data"), list):
-            return node["data"]
         if isinstance(node, list):
             return node
+        if isinstance(node, dict):
+            # ซ้อนได้หลายชั้น เช่น thailand_main: {"dam": {"data": {"result": ..., "data": [...]}}}
+            found = _rows(node)
+            if found:
+                return found
     data = payload.get("data")
     if isinstance(data, list):
         return data

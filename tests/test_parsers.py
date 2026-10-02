@@ -113,3 +113,11 @@ def test_gistda_h3_cells_aggregate_per_tambon():
     assert a.extra["cells"] == 2 and a.extra["building"] == 15 and a.extra["length_road"] == 1.5
     assert a.observed_at.startswith("2026-10-02") and a.province == "เชียงใหม่"
     assert obs["500106"].value == 230  # h3_area เป็นไร่อยู่แล้ว
+
+
+def test_thaiwater_dam_nested_in_thailand_main():
+    payload = {"dam": {"data": {"result": "OK", "data": [
+        {"dam": {"id": 1, "dam_name": {"th": "เขื่อนภูมิพล"}}, "dam_date": "2026-10-02", "dam_storage_percent": 71.2}]},
+        "setting": {"scale": []}}, "province": {}}
+    obs = parse_dam(payload)
+    assert len(obs) == 1 and obs[0].name == "เขื่อนภูมิพล" and obs[0].value == 71.2

@@ -203,3 +203,27 @@ def test_respect_intervals_skips_recent_success(tmp_path, monkeypatch):
         collector.collect(None, Settings(), store, respect_intervals=True)  # ยังไม่ถึงรอบ
         collector.collect(None, Settings(), store)  # ไม่สนรอบ
     assert len(calls) == 2
+
+
+def test_gistda_falls_back_to_request_variant_that_returns_data():
+    from thaiflood.sources.gistda import GistdaSource
+
+    cell = {"properties": {"tb_idn": "410415", "tb_tn": "ต.กุมภวาปี", "ap_tn": "อ.กุมภวาปี", "pv_tn": "จ.อุดรธานี",
+                           "f_area": "19855.2", "h3_area": "121604.8", "building": "2"}}
+    seen = []
+
+    class Session:
+        def get(self, url, params=None, **kw):
+            seen.append(dict(params))
+            if params.get("skipGeometry") or params["limit"] > 1000:
+                return FakeResponse({"features": [], "numberMatched": 0})
+            batch = [cell] * 2 if params["offset"] == 0 else [cell]
+            return FakeResponse({"features": batch[: params["limit"]], "numberMatched": 3})
+
+    settings = Settings()
+    settings.gistda_api_key = "k"
+    agg, meta, _ = GistdaSource(settings, session=Session()).fetch_aggregate("7days")
+    assert meta["variant"] == {"limit": 1000} and agg.features == 2
+    o = agg.observations()[0]
+    assert (o.province, o.amphoe, o.name) == ("อุดรธานี", "กุมภวาปี", "กุมภวาปี")
+    assert o.value == round(2 * 19855.2 / 1600, 2) and o.extra["building"] == 4
