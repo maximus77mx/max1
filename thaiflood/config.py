@@ -19,7 +19,11 @@ def _env(name: str, default: str | None = None) -> str | None:
 @dataclass
 class Settings:
     data_dir: Path = field(default_factory=lambda: Path(_env("THAIFLOOD_DATA_DIR", "data")))
-    timeout: float = float(_env("THAIFLOOD_TIMEOUT", "30"))
+    # (connect, read) — เว็บที่บล็อก IP ต่างประเทศมักค้างที่ขั้น connect จึงตัดเร็ว
+    timeout: tuple[float, float] = (
+        float(_env("THAIFLOOD_CONNECT_TIMEOUT", "10")),
+        float(_env("THAIFLOOD_TIMEOUT", "30")),
+    )
     user_agent: str = _env(
         "THAIFLOOD_USER_AGENT",
         "thaiflood-collector/0.1 (+https://github.com/maximus77mx/max1)",
@@ -31,7 +35,8 @@ class Settings:
     )
     thaiwater_waterlevel_path: str = _env("THAIWATER_WATERLEVEL_PATH", "/public/waterlevel_load")
     thaiwater_rain_path: str = _env("THAIWATER_RAIN_PATH", "/public/rain_24h")
-    thaiwater_dam_path: str = _env("THAIWATER_DAM_PATH", "/public/dam_daily")
+    # ลองตามลำดับจนเจอ path ที่ตอบกลับ (คั่นด้วย ,) — thailand_main มีข้อมูลเขื่อนอยู่ใน dam_data
+    thaiwater_dam_path: str = _env("THAIWATER_DAM_PATH", "/public/dam_daily,/public/dam_load,/public/thailand_main")
     # กราฟย้อนหลังรายสถานี (historical) — {station_id}, {start}, {end} จะถูกแทนค่า
     thaiwater_waterlevel_graph_path: str = _env(
         "THAIWATER_WATERLEVEL_GRAPH_PATH",
@@ -55,9 +60,8 @@ class Settings:
     # --- กรมอุตุนิยมวิทยา — NWP API (ต้องขอ token ที่ data.tmd.go.th) ---
     tmd_nwp_base: str = _env("TMD_NWP_BASE", "https://data.tmd.go.th/nwpapi/v1")
     tmd_token: str | None = _env("TMD_API_TOKEN")
-    tmd_radar_url: str = _env(
-        "TMD_RADAR_URL", "https://weather.tmd.go.th/composite/Composite_latest.png"
-    )
+    # URL ภาพเรดาร์ (ไม่ตั้ง = ไม่ดึง) เช่นลิงก์ภาพ composite ล่าสุดจากหน้าเรดาร์ของกรมอุตุฯ
+    tmd_radar_url: str | None = _env("TMD_RADAR_URL")
     # จุดพยากรณ์ฝน: "ชื่อ:lat:lon;ชื่อ:lat:lon"
     tmd_points: str = _env(
         "TMD_POINTS",

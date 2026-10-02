@@ -78,6 +78,8 @@ class TmdSource(Source):
         else:
             result.errors.append("ข้ามพยากรณ์: ยังไม่ได้ตั้ง TMD_API_TOKEN")
 
+        if not self.settings.tmd_radar_url:
+            return result
         try:
             resp = self.session.get(self.settings.tmd_radar_url, timeout=self.settings.timeout)
             resp.raise_for_status()
