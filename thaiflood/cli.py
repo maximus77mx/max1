@@ -165,8 +165,16 @@ def cmd_dashboard(args: argparse.Namespace, settings: Settings) -> int:
     with _store(settings) as store:
         if args.collect:
             collect(None, settings, store)
-        out = write_dashboard(store, Path(args.output or default_output_name()), days=args.days, province=args.province, settings=settings)
+        out = write_dashboard(store, Path(args.output or default_output_name()), days=args.days, province=args.province, settings=settings, geo=not args.no_geo)
     print(f"สร้าง dashboard: {out.resolve()} ({out.stat().st_size / 1024:,.0f} KB) — เปิดด้วยเบราว์เซอร์ได้เลย")
+    return 0
+
+
+def cmd_probe_gistda(args: argparse.Namespace, settings: Settings) -> int:
+    from .sources.gistda import GistdaSource
+
+    for line in GistdaSource(settings).probe():
+        print(line)
     return 0
 
 
@@ -238,7 +246,10 @@ def build_parser() -> argparse.ArgumentParser:
     d.add_argument("--days", type=int, default=7, help="ฝังข้อมูลย้อนหลังกี่วัน (ยิ่งมากไฟล์ยิ่งใหญ่)")
     d.add_argument("--province", help="ฝังเฉพาะจังหวัดนี้")
     d.add_argument("--collect", action="store_true", help="ดึงข้อมูลใหม่ทุกแหล่งก่อนสร้าง")
+    d.add_argument("--no-geo", action="store_true", help="ไม่ทำแผนที่ระบายสีรายจังหวัด/ตำบล (ไม่ต้องดาวน์โหลดขอบเขต)")
     d.set_defaults(func=cmd_dashboard)
+
+    sub.add_parser("probe-gistda", help="ตรวจการตอบกลับของ GISTDA API ทุกช่วงเวลา").set_defaults(func=cmd_probe_gistda)
 
     pr = sub.add_parser("prune", help="ลบข้อมูลเก่าเพื่อคุมขนาดฐานข้อมูล")
     pr.add_argument("--keep-days", type=int, required=True)

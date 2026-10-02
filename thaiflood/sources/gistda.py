@@ -91,7 +91,9 @@ class GistdaSource(Source):
         features: list[dict[str, Any]] = []
         offset = 0
         while True:
-            page = self.get_json(url, headers=headers, params={"limit": self.page_size, "offset": offset})
+            # ลิงก์ที่ API ส่งกลับมีรูปแบบ ?api_key=... จึงส่ง key ทั้งใน header และ query
+            params = {"limit": self.page_size, "offset": offset, "api_key": self.settings.gistda_api_key}
+            page = self.get_json(url, headers=headers, params=params)
             self._last_page = page if isinstance(page, dict) else {"type": type(page).__name__}
             batch = (page.get("features") or page.get("data") or []) if isinstance(page, dict) else []
             features.extend(batch)
@@ -100,15 +102,56 @@ class GistdaSource(Source):
             offset += self.page_size
         return {"type": "FeatureCollection", "features": features}
 
+    def probe(self) -> list[str]:
+        """ตรวจการตอบกลับของ API ทุกช่วงเวลา (สำหรับหาสาเหตุเมื่อได้ 0 พื้นที่) — ไม่พิมพ์ key"""
+        lines = []
+        url_base = self.settings.gistda_base.rstrip("/")
+        key = self.settings.gistda_api_key or ""
+        for period in PERIODS:
+            for label, kw in (
+                ("header", {"headers": {"API-Key": key}, "params": {"limit": 5}}),
+                ("query", {"params": {"limit": 5, "api_key": key}}),
+            ):
+                try:
+                    resp = self.session.get(f"{url_base}/{period}", timeout=self.settings.timeout, **kw)
+                    info = f"{resp.status_code} {resp.headers.get('content-type', '')}"
+                    try:
+                        body = resp.json()
+                    except ValueError:
+                        lines.append(f"{period} [{label}] {info} — ไม่ใช่ JSON: {resp.text[:200]!r}")
+                        continue
+                    if isinstance(body, dict):
+                        feats = body.get("features") or []
+                        meta = {k: body[k] for k in ("numberMatched", "numberReturned", "timeStamp", "totalFeatures", "message", "error") if k in body}
+                        links = [f"{l.get('rel')}:{l.get('title') or ''}" for l in body.get("links", []) if isinstance(l, dict)]
+                        props = list((feats[0].get("properties") or {}).keys())[:20] if feats else []
+                        lines.append(f"{period} [{label}] {info} keys={list(body)[:10]} features={len(feats)} meta={meta} links={links} props={props}")
+                    else:
+                        lines.append(f"{period} [{label}] {info} — {type(body).__name__}")
+                except Exception as exc:
+                    lines.append(f"{period} [{label}] ผิดพลาด: {exc}")
+        return [l.replace(key, "***") if key else l for l in lines]
+
     def collect(self, period: str = "1day") -> CollectResult:
+        """ดึงช่วงล่าสุดก่อน ถ้าว่าง (ดาวเทียมยังไม่ผ่าน/ไม่มีท่วม) ขยายไปช่วงที่ยาวขึ้น"""
         result = CollectResult(self.name)
-        try:
-            payload = self.fetch(period)
-            result.raw[f"flood_{period}.geojson"] = payload  # เก็บ GeoJSON เต็มไว้ทำแผนที่
-            result.observations = parse_flood(payload, period)
-            if not result.observations:
-                meta = {k: v for k, v in self._last_page.items() if k != "features"} if self._last_page else {}
-                result.errors.append(f"API ตอบกลับ 0 พื้นที่ ({period}) — meta={str(meta)[:300]}")
-        except Exception as exc:
-            result.errors.append(str(exc))
+        empty = []
+        for p in PERIODS[PERIODS.index(period):]:
+            try:
+                payload = self.fetch(p)
+            except Exception as exc:
+                result.errors.append(f"{p}: {exc}")
+                break
+            observations = parse_flood(payload, p)
+            if observations:
+                result.raw["flood_1day.geojson"] = payload  # ชื่อคงที่ — dashboard ใช้ไฟล์ล่าสุดวาด polygon
+                result.observations = observations
+                break
+            page = self._last_page or {}
+            info = {k: page[k] for k in ("numberMatched", "numberReturned", "timeStamp", "totalFeatures") if k in page}
+            empty.append(f"{p}={info or 'ไม่มี feature'}")
+        if empty and not result.observations:
+            result.errors.append("API ตอบกลับ 0 พื้นที่ทุกช่วง: " + ", ".join(empty))
+        elif empty:
+            result.errors.append("ช่วงสั้นกว่าไม่มีข้อมูล ใช้ช่วงยาวขึ้นแทน: " + ", ".join(empty))
         return result

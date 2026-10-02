@@ -73,6 +73,16 @@ class Settings:
     sphere_flood_wms_url: str | None = _env("SPHERE_FLOOD_WMS_URL")
     sphere_flood_wms_layers: str | None = _env("SPHERE_FLOOD_WMS_LAYERS")
 
+    # --- ขอบเขตการปกครองสำหรับแผนที่ระบายสีรายจังหวัด/ตำบล (GeoJSON, property แบบ tam_code/tam_th/pro_code) ---
+    tambon_geojson_url: str = _env(
+        "TAMBON_GEOJSON_URL",
+        "https://raw.githubusercontent.com/chingchai/OpenGISData-Thailand/master/subdistricts.geojson",
+    )
+    province_geojson_url: str = _env(
+        "PROVINCE_GEOJSON_URL",
+        "https://raw.githubusercontent.com/chingchai/OpenGISData-Thailand/master/provinces.geojson",
+    )
+
     # จุดพยากรณ์ฝน: "ชื่อ:lat:lon;ชื่อ:lat:lon"
     tmd_points: str = _env(
         "TMD_POINTS",
