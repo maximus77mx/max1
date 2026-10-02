@@ -111,6 +111,7 @@ def build_payload(
         "flood_geojson": _latest_geojson(store.raw_dir),
         "map": map_config(settings or Settings()),
         "tambons": tambons,
+        "tambon_list": tambon_index.search_list() if tambon_index else [],
         "province_geo": province_geo,
         "geo_base": "geo/" if tambon_index else None,
     }

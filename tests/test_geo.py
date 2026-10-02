@@ -49,3 +49,10 @@ def test_tambon_files_and_payload(tmp_path):
     tcs = {s["id"]: s.get("tc") for s in p["stations"]}
     assert tcs == {"r1": "500105", "r2": None}
     assert set(p["tambons"]) == {"500105"} and p["geo_base"] == "geo/"
+
+
+def test_search_list_is_compact():
+    sl = TambonIndex.from_file(FIX).search_list()
+    assert sl["p"] == {"50": "เชียงใหม่"}
+    assert sl["a"] == {"5001": ["เมืองเชียงใหม่", "50"]}
+    assert sl["t"] == [["500105", "ช้างคลาน", "5001", 1250], ["500106", "วัดเกต", "5001", 2500]]

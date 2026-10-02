@@ -142,6 +142,7 @@ class TambonIndex:
             self.meta[code] = {
                 "tc": code, "t": p.get("tam_th"), "a": p.get("amp_th"), "p": p.get("pro_th"),
                 "pc": str(p.get("pro_code") or code[:2]),
+                "ac": str(p.get("amp_code") or code[:4]),
                 "rai": round(area * RAI_PER_SQKM) if isinstance(area, (int, float)) else None,
             }
             for gx in range(int(bbox[0] // self.CELL), int(bbox[2] // self.CELL) + 1):
@@ -153,6 +154,20 @@ class TambonIndex:
         for m in self.meta.values():
             out[m["pc"]] += m["rai"] or 0
         return dict(out)
+
+    def search_list(self) -> dict[str, Any]:
+        """รายชื่อตำบลทั้งประเทศแบบกระชับสำหรับช่องค้นหาในหน้าเว็บ (ชื่ออำเภอ/จังหวัดเก็บครั้งเดียว)
+
+        {"p": {pro_code: ชื่อจังหวัด}, "a": {amp_code: [ชื่ออำเภอ, pro_code]}, "t": [[tam_code, ชื่อตำบล, amp_code, ไร่]]}
+        """
+        prov: dict[str, str] = {}
+        amp: dict[str, list[str]] = {}
+        rows = []
+        for m in sorted(self.meta.values(), key=lambda m: m["tc"]):
+            prov[m["pc"]] = m["p"]
+            amp.setdefault(m["ac"], [m["a"], m["pc"]])
+            rows.append([m["tc"], m["t"], m["ac"], m["rai"]])
+        return {"p": prov, "a": amp, "t": rows}
 
     @classmethod
     def from_file(cls, path: Path) -> "TambonIndex":
