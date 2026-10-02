@@ -101,14 +101,25 @@ class GistdaSource(Source):
         return {"type": "FeatureCollection", "features": features}
 
     def collect(self, period: str = "1day") -> CollectResult:
+        """ดึงช่วงล่าสุดก่อน ถ้าว่าง (ดาวเทียมยังไม่ผ่าน/ไม่มีท่วม) ขยายไปช่วงที่ยาวขึ้น"""
         result = CollectResult(self.name)
-        try:
-            payload = self.fetch(period)
-            result.raw[f"flood_{period}.geojson"] = payload  # เก็บ GeoJSON เต็มไว้ทำแผนที่
-            result.observations = parse_flood(payload, period)
-            if not result.observations:
-                meta = {k: v for k, v in self._last_page.items() if k != "features"} if self._last_page else {}
-                result.errors.append(f"API ตอบกลับ 0 พื้นที่ ({period}) — meta={str(meta)[:300]}")
-        except Exception as exc:
-            result.errors.append(str(exc))
+        empty = []
+        for p in PERIODS[PERIODS.index(period):]:
+            try:
+                payload = self.fetch(p)
+            except Exception as exc:
+                result.errors.append(f"{p}: {exc}")
+                break
+            observations = parse_flood(payload, p)
+            if observations:
+                result.raw["flood_1day.geojson"] = payload  # ชื่อคงที่ — dashboard ใช้ไฟล์ล่าสุดวาด polygon
+                result.observations = observations
+                break
+            page = self._last_page or {}
+            info = {k: page[k] for k in ("numberMatched", "numberReturned", "timeStamp", "totalFeatures") if k in page}
+            empty.append(f"{p}={info or 'ไม่มี feature'}")
+        if empty and not result.observations:
+            result.errors.append("API ตอบกลับ 0 พื้นที่ทุกช่วง: " + ", ".join(empty))
+        elif empty:
+            result.errors.append("ช่วงสั้นกว่าไม่มีข้อมูล ใช้ช่วงยาวขึ้นแทน: " + ", ".join(empty))
         return result

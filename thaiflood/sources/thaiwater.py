@@ -114,7 +114,7 @@ def parse_rain(payload: Any, kind: str = "rain_24h") -> list[Observation]:
 
 def parse_dam(payload: Any) -> list[Observation]:
     out = []
-    for row in _rows(payload, "dam_data", "dam_daily"):
+    for row in _rows(payload, "dam_data", "dam_daily", "dam"):
         dam = row.get("dam") or {}
         out.append(
             Observation(
@@ -167,9 +167,13 @@ class ThaiWaterSource(Source):
                     tried.append(f"{path}: {exc}")
                     continue
                 obs = parser(payload)
-                if not obs:
+                if not obs or all(o.value is None for o in obs):
                     keys = list(payload)[:8] if isinstance(payload, dict) else type(payload).__name__
-                    tried.append(f"{path}: ตอบกลับแต่ไม่พบข้อมูล (keys={keys})")
+                    sample = ""
+                    if obs:  # เจอแถวแต่อ่านค่าไม่ได้ — แสดงชื่อฟิลด์ของแถวแรกไว้แก้ parser
+                        first = _rows(payload, "dam_data", "dam_daily", "dam", "waterlevel_data", "rain_data")[:1]
+                        sample = f", ฟิลด์แถวแรก={list(first[0])[:15] if first else '-'}"
+                    tried.append(f"{path}: ตอบกลับแต่ไม่พบข้อมูล (keys={keys}{sample})")
                     continue
                 result.raw[f"{label}.json"] = payload
                 result.observations.extend(obs)

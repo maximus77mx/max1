@@ -147,3 +147,20 @@ def test_gistda_empty_reports_meta():
     settings.gistda_api_key = "k"
     result = GistdaSource(settings, session=Session()).collect()
     assert result.observations == [] and "numberMatched" in result.errors[0]
+    assert "30days" in result.errors[0]
+
+
+def test_gistda_falls_back_to_longer_period():
+    from thaiflood.sources.gistda import GistdaSource
+
+    feature = json.loads((FIX / "gistda_flood.geojson").read_text(encoding="utf-8"))
+
+    class Session:
+        def get(self, url, **kw):
+            return FakeResponse(feature if url.endswith("/7days") else {"features": []})
+
+    settings = Settings()
+    settings.gistda_api_key = "k"
+    result = GistdaSource(settings, session=Session()).collect()
+    assert len(result.observations) == 2 and result.observations[0].extra["period"] == "7days"
+    assert "flood_1day.geojson" in result.raw

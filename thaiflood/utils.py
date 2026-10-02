@@ -28,6 +28,7 @@ def make_session(user_agent: str, retries: int = 3) -> requests.Session:
     retry = Retry(
         total=retries,
         connect=1,  # ต่อไม่ติด (เช่นถูกบล็อก/timeout) ลองซ้ำแค่ครั้งเดียว ไม่ให้ทั้งรอบช้า
+        read=1,
         backoff_factor=2,
         status_forcelist=(429, 500, 502, 503, 504),
         allowed_methods=("GET",),
