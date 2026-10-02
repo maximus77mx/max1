@@ -43,7 +43,7 @@ def test_render_embeds_json_safely(tmp_path):
 
 def test_cli_dashboard(tmp_path):
     out = tmp_path / "d.html"
-    assert main(["--data-dir", str(tmp_path), "dashboard", str(out)]) == 0
+    assert main(["--data-dir", str(tmp_path), "dashboard", str(out), "--no-geo"]) == 0
     assert out.read_text(encoding="utf-8").startswith("<!doctype html>")
 
 

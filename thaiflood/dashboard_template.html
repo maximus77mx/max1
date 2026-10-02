@@ -22,7 +22,7 @@
   --accent: #2a78d6;
   --series-1: #2a78d6;
   --series-2: #eb6834;
-  --seq-1: #9ec5f4; --seq-2: #5598e7; --seq-3: #256abf; --seq-4: #104281;
+  --seq-0: #cde2fb; --seq-1: #9ec5f4; --seq-2: #5598e7; --seq-3: #256abf; --seq-4: #104281;
   --good: #0ca30c; --warning: #fab219; --serious: #ec835a; --critical: #d03b3b;
   --neutral: #a3a29c;
   --flood: #4a3aa7;
@@ -34,7 +34,7 @@
     --bg: #121211; --surface-1: #1a1a19; --surface-2: #232321; --border: #33332f; --grid: #2a2a27;
     --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #8e8d85;
     --accent: #3987e5; --series-1: #3987e5; --series-2: #d95926;
-    --seq-1: #184f95; --seq-2: #2a78d6; --seq-3: #5598e7; --seq-4: #9ec5f4;
+    --seq-0: #104281; --seq-1: #184f95; --seq-2: #2a78d6; --seq-3: #5598e7; --seq-4: #9ec5f4;
     --neutral: #6b6a64; --flood: #9085e9; --shadow: none;
   }
 }
@@ -43,7 +43,7 @@
   --bg: #121211; --surface-1: #1a1a19; --surface-2: #232321; --border: #33332f; --grid: #2a2a27;
   --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #8e8d85;
   --accent: #3987e5; --series-1: #3987e5; --series-2: #d95926;
-  --seq-1: #184f95; --seq-2: #2a78d6; --seq-3: #5598e7; --seq-4: #9ec5f4;
+  --seq-0: #104281; --seq-1: #184f95; --seq-2: #2a78d6; --seq-3: #5598e7; --seq-4: #9ec5f4;
   --neutral: #6b6a64; --flood: #9085e9; --shadow: none;
 }
 * { box-sizing: border-box; }
@@ -172,6 +172,12 @@ tbody tr.sel { background: var(--surface-2); box-shadow: inset 3px 0 0 var(--acc
       <button type="button" data-h="0">ทั้งหมด</button>
     </div>
     <span id="layers" style="display:contents"></span>
+    <select id="areaMetric" aria-label="ค่าที่ใช้ระบายสีพื้นที่" hidden>
+      <option value="flood">ระบายสีตาม: พื้นที่ท่วม (ไร่)</option>
+      <option value="floodpct">ระบายสีตาม: % พื้นที่ที่ท่วม</option>
+      <option value="rain">ระบายสีตาม: ฝนสูงสุด 24 ชม.</option>
+      <option value="crit">ระบายสีตาม: สถานีระดับน้ำวิกฤต</option>
+    </select>
   </div>
 
   <section class="kpis" id="kpis" aria-label="ตัวเลขสรุป"></section>
@@ -186,6 +192,7 @@ tbody tr.sel { background: var(--surface-2); box-shadow: inset 3px 0 0 var(--acc
 
   <section class="card">
     <div class="tabs" role="tablist" id="tabs">
+      <button role="tab" data-tab="hotspots" id="hotspotTab" hidden>Hotspot รายตำบล</button>
       <button role="tab" data-tab="waterlevel">ระดับน้ำ</button>
       <button role="tab" data-tab="rain_24h">ฝน 24 ชม.</button>
       <button role="tab" data-tab="dam_storage">เขื่อน</button>
@@ -258,13 +265,16 @@ function badge(statusKey) {
 const S = {
   province: "",
   hours: Number(store.get("tf.hours") || 72),
-  layers: new Set(JSON.parse(store.get("tf.layers") || '["waterlevel","rain_24h","dam_storage","flood_area","street_flood"]')),
+  layers: new Set(JSON.parse(store.get("tf.layers") || '["waterlevel","rain_24h","dam_storage","flood_area","street_flood","area"]')),
   tab: "waterlevel",
   selected: null,
   sort: { key: "value", dir: -1 },
   q: "",
   fit: true,
+  metric: store.get("tf.metric") || "flood",
 };
+if (!AREA_METRICS_OK()) S.metric = "flood";
+function AREA_METRICS_OK() { return ["flood", "floodpct", "rain", "crit"].includes(S.metric); }
 const ANCHOR = (() => { // เวลาอ้างอิง = ข้อมูลล่าสุดที่มี (ไม่ใช่เวลาที่เปิดไฟล์)
   let max = 0;
   for (const [k, pts] of Object.entries(DATA?.series || {})) {
@@ -325,8 +335,99 @@ function renderKpis() {
 let map, tileLayer, groups = {}, markerByKey = {};
 const LAYER_DEFS = [
   ["waterlevel", "ระดับน้ำ"], ["rain_24h", "ฝน 24 ชม."], ["dam_storage", "เขื่อน"],
-  ["flood_area", "พื้นที่ท่วม"], ["street_flood", "ท่วมขัง กทม."],
+  ["flood_area", "พื้นที่ท่วม"], ["street_flood", "ท่วมขัง กทม."], ["area", "ระบายสีรายจังหวัด/ตำบล"],
 ];
+const HAS_GEO = !!(DATA && DATA.province_geo);
+
+// ---------- ระดับพื้นที่ (จังหวัด/ตำบล) ----------
+const AREA_METRICS = {
+  flood:    { label: "พื้นที่ท่วม", unit: "ไร่", fmt: 0, breaks: [1, 100, 500, 2000, 10000] },
+  floodpct: { label: "% พื้นที่ที่ท่วม", unit: "%", fmt: 1, breaks: [0.1, 1, 5, 15, 30] },
+  rain:     { label: "ฝนสูงสุด 24 ชม.", unit: "มม.", fmt: 1, breaks: [0.1, 10.1, 35.1, 60, 90.1] },
+  crit:     { label: "สถานีระดับน้ำวิกฤต/เฝ้าระวัง", unit: "สถานี", fmt: 0, breaks: [1, 2, 3, 5, 8] },
+};
+const SEQ = ["--seq-0", "--seq-1", "--seq-2", "--seq-3", "--seq-4"];
+const PROV_BY_NAME = Object.fromEntries((DATA?.province_geo?.features || []).map(f => [f.properties.p, f.properties]));
+const geoCache = {};
+// รวมค่ารายตำบลจากสถานีที่ผ่านตัวกรอง (จังหวัด + ช่วงเวลา) — คำนวณใหม่ทุกครั้งที่ตัวกรองเปลี่ยน
+function areaStats() {
+  const T = {};
+  const get = tc => T[tc] ||= { ...DATA.tambons[tc], flood: 0, rain: null, rainName: null, crit: 0 };
+  for (const r of rows("flood_area")) if (r.st.tc) get(r.st.tc).flood += r.value || 0;
+  for (const r of rows("rain_24h")) if (r.st.tc && r.value != null) { const t = get(r.st.tc); if (t.rain == null || r.value > t.rain) { t.rain = r.value; t.rainName = r.st.name; } }
+  for (const r of rows("waterlevel")) if (r.st.tc && (r.status === "critical" || r.status === "serious")) get(r.st.tc).crit++;
+  for (const t of Object.values(T)) t.floodpct = t.rai ? t.flood / t.rai * 100 : null;
+  const P = {};
+  for (const t of Object.values(T)) {
+    const p = P[t.pc] ||= { pc: t.pc, p: t.p, flood: 0, rain: null, crit: 0, rai: PROV_BY_NAME[t.p]?.rai || null };
+    p.flood += t.flood; p.crit += t.crit;
+    if (t.rain != null && (p.rain == null || t.rain > p.rain)) p.rain = t.rain;
+  }
+  for (const p of Object.values(P)) p.floodpct = p.rai ? p.flood / p.rai * 100 : null;
+  return { T, P };
+}
+function areaColor(v) {
+  const b = AREA_METRICS[S.metric].breaks;
+  if (v == null || v < b[0]) return null;
+  let i = 0; while (i < b.length - 1 && v >= b[i + 1]) i++;
+  return css(SEQ[i]);
+}
+function areaTooltip(o, title) {
+  const m = AREA_METRICS;
+  return `<b>${esc(title)}</b><br>พื้นที่ท่วม: ${num(o?.flood || 0, 0)} ไร่${o?.floodpct != null ? ` (${num(o.floodpct, 1)}%)` : ""}` +
+    `<br>ฝนสูงสุด 24 ชม.: ${o?.rain != null ? num(o.rain, 1) + " มม." : "–"}<br>สถานีระดับน้ำวิกฤต/เฝ้าระวัง: ${num(o?.crit || 0, 0)}`;
+}
+async function loadTambons(pc) {
+  if (geoCache[pc]) return geoCache[pc];
+  const resp = await fetch(`${DATA.geo_base}tambon_${pc}.json`);
+  if (!resp.ok) throw new Error(resp.status);
+  return (geoCache[pc] = await resp.json());
+}
+let areaToken = 0, areaNoteText = "";
+function setAreaNote(t) { areaNoteText = t; const el = document.getElementById("areaNote"); if (el) el.textContent = t; }
+async function renderArea() {
+  const g = groups.area; if (!g) return;
+  g.clearLayers();
+  if (!HAS_GEO || !S.layers.has("area")) return;
+  const token = ++areaToken, { T, P } = areaStats();
+  const outline = { color: css("--text-muted"), weight: .6, opacity: .7 };
+  const prov = S.province && PROV_BY_NAME[S.province];
+  if (!prov) {
+    L.geoJSON(DATA.province_geo, {
+      pane: "area",
+      style: f => { const c = areaColor(P[f.properties.pc]?.[S.metric]); return { ...outline, fillColor: c || "transparent", fillOpacity: c ? .6 : 0 }; },
+      onEachFeature: (f, l) => l.bindTooltip(areaTooltip(P[f.properties.pc], "จ." + f.properties.p), { sticky: true })
+        .on("click", () => { S.province = f.properties.p; S.selected = null; S.fit = true; $("#province").value = S.province; renderAll(); }),
+    }).addTo(g);
+    setAreaNote("คลิกจังหวัดเพื่อดูรายตำบล");
+    return;
+  }
+  // ขอบจังหวัดไว้เป็นกรอบระหว่างรอโหลดตำบล
+  L.geoJSON(DATA.province_geo, { pane: "area", filter: f => f.properties.p === S.province, style: { ...outline, weight: 2, fillOpacity: 0 } }).addTo(g);
+  try {
+    const fc = await loadTambons(prov.pc);
+    if (token !== areaToken) return;
+    const layer = L.geoJSON(fc, {
+      pane: "area",
+      style: f => { const c = areaColor(T[f.properties.tc]?.[S.metric]); return { ...outline, fillColor: c || "transparent", fillOpacity: c ? .65 : 0 }; },
+      onEachFeature: (f, l) => { const meta = T[f.properties.tc] || DATA.tambons[f.properties.tc]; l.bindTooltip(areaTooltip(T[f.properties.tc], meta ? `ต.${meta.t} อ.${meta.a}` : "ตำบล " + f.properties.tc), { sticky: true }); },
+    }).addTo(g);
+    areaLayers = {}; layer.eachLayer(l => areaLayers[l.feature.properties.tc] = l);
+    if (pendingZoom && areaLayers[pendingZoom]) { const l = areaLayers[pendingZoom]; pendingZoom = null; map.fitBounds(l.getBounds(), { maxZoom: 13 }); l.openTooltip(); }
+    setAreaNote(`จ.${S.province} · รายตำบล`);
+  } catch (e) {
+    setAreaNote(location.protocol.startsWith("http") ? "โหลดขอบเขตตำบลไม่ได้" : "เปิดผ่านเว็บ (http) เพื่อดูขอบเขตตำบล — ตาราง Hotspot ยังใช้ได้");
+  }
+}
+let areaLayers = {}, pendingZoom = null;
+function zoomToTambon(tc) {
+  const t = DATA.tambons[tc]; if (!t || !map) return;
+  if (!S.layers.has("area")) { S.layers.add("area"); renderFilters(); }
+  pendingZoom = tc; // ซูมเมื่อโหลดขอบเขตตำบลของจังหวัดเสร็จ
+  if (S.province !== t.p) { S.province = t.p; S.selected = null; $("#province").value = t.p; renderAll(); }
+  else renderArea();
+  if (innerWidth <= 860) $("#map").scrollIntoView({ behavior: "smooth", block: "start" });
+}
 function tileUrl() {
   const dark = document.documentElement.dataset.theme === "dark" ||
     (document.documentElement.dataset.theme !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
@@ -369,6 +470,8 @@ function initMap() {
   if (Object.keys(bases).length > 1 || Object.keys(overlays).length) L.control.layers(bases, overlays, { position: "topright" }).addTo(map);
   for (const [k] of LAYER_DEFS) groups[k] = L.layerGroup();
   groups.flood_poly = L.layerGroup();
+  groups.area = L.layerGroup();
+  map.createPane("area").style.zIndex = 350; // ใต้หมุดสถานี
 }
 function markerStyle(st, value, status) {
   if (st.kind === "rain_24h") {
@@ -416,6 +519,7 @@ function renderMap() {
     const on = k === "flood_poly" ? S.layers.has("flood_area") : S.layers.has(k);
     on ? g.addTo(map) : g.remove();
   }
+  renderArea();
   if (S.fit && bounds.length) { map.fitBounds(bounds, { padding: [30, 30], maxZoom: S.province ? 11 : 7 }); S.fit = false; }
 }
 function renderLegend() {
@@ -427,6 +531,10 @@ function renderLegend() {
   if (S.layers.has("rain_24h")) {
     parts.push(`<div class="row"><b>ฝน</b>${[...RAIN_STEPS].reverse().map(s =>
       `<span><span class="sw" style="background:var(${s.v})"></span>${s.label}</span>`).join("")}</div>`);
+  }
+  if (HAS_GEO && S.layers.has("area")) {
+    const m = AREA_METRICS[S.metric], b = m.breaks;
+    parts.push(`<div class="row"><b>${esc(m.label)}</b>${b.map((v, i) => `<span><span class="sw" style="border-radius:2px;background:var(${SEQ[i]})"></span>${i < b.length - 1 ? `${num(v, v < 1 ? 1 : 0)}–${num(b[i + 1], b[i + 1] < 1 ? 1 : 0)}` : `≥${num(v, 0)}`}</span>`).join("")}<span id="areaNote" style="color:var(--text-muted)">${esc(areaNoteText)}</span></div>`);
   }
   if (S.layers.has("flood_area")) parts.push(`<div class="row"><b>ดาวเทียม</b><span><span class="sw" style="background:var(--flood)"></span>พื้นที่น้ำท่วม (ขนาด = ไร่)</span></div>`);
   $("#legend").innerHTML = parts.join("");
@@ -548,6 +656,7 @@ function renderDetail() {
 function renderTab() {
   document.querySelectorAll("#tabs button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === S.tab)));
   if (S.tab === "reports") return renderReports();
+  if (S.tab === "hotspots") return renderHotspots();
   if (S.tab === "forecast") return renderForecast();
   const K = KINDS[S.tab];
   let list = rows(S.tab);
@@ -579,6 +688,19 @@ function renderTab() {
 }
 const METRIC_LABEL = { provinces: "จังหวัด", districts: "อำเภอ", subdistricts: "ตำบล", villages: "หมู่บ้าน", households: "ครัวเรือน", people: "คน", deaths: "เสียชีวิต", injured: "บาดเจ็บ", missing: "สูญหาย" };
 const SRC_LABEL = { disaster: "ปภ.", onwr: "สทนช.", tmd: "กรมอุตุฯ" };
+function renderHotspots() {
+  const { T } = areaStats();
+  const key = S.metric;
+  const list = Object.values(T).filter(t => (t[key] ?? 0) > 0 || t.flood > 0 || t.crit > 0 || (t.rain ?? 0) >= 35)
+    .sort((a, b) => (b[key] ?? -1) - (a[key] ?? -1) || b.flood - a.flood);
+  $("#tabbody").innerHTML = `<div class="toolbar"><span class="count">${num(list.length, 0)} ตำบลที่มีสัญญาณ (พื้นที่ท่วม, สถานีวิกฤต/เฝ้าระวัง หรือฝน ≥35 มม.) · เรียงตาม ${esc(AREA_METRICS[key].label)} — เปลี่ยนได้ที่ตัวเลือก "ระบายสีตาม"</span></div>
+    ${list.length ? `<div class="tablewrap"><table><thead><tr><th>#</th><th>ตำบล</th><th>อำเภอ</th><th>จังหวัด</th><th class="num">พื้นที่ท่วม (ไร่)</th><th class="num">% ของตำบล</th><th class="num">ฝนสูงสุด (มม.)</th><th class="num">สถานีวิกฤต</th></tr></thead><tbody>
+      ${list.slice(0, 300).map((t, i) => `<tr data-tc="${esc(t.tc)}"><td class="num">${i + 1}</td><td>${esc(t.t)}</td><td>${esc(t.a)}</td><td>${esc(t.p)}</td>
+        <td class="num">${t.flood ? num(t.flood, 0) : "–"}</td><td class="num">${t.floodpct ? num(t.floodpct, 1) : "–"}</td>
+        <td class="num" title="${esc(t.rainName || "")}">${t.rain != null ? num(t.rain, 1) : "–"}</td><td class="num">${t.crit || "–"}</td></tr>`).join("")}
+      </tbody></table></div>` : '<div class="empty">ยังไม่มีตำบลที่มีสัญญาณในตัวกรองนี้</div>'}`;
+  document.querySelectorAll("tbody tr[data-tc]").forEach(tr => tr.addEventListener("click", () => zoomToTambon(tr.dataset.tc)));
+}
 function renderReports() {
   const list = DATA.reports.filter(r => !S.province || r.provinces.includes(S.province))
     .sort((a, b) => (b.published_at || "").localeCompare(a.published_at || ""));
@@ -600,10 +722,12 @@ function renderForecast() {
 
 // ---------- ตัวกรอง ----------
 function renderFilters() {
-  const provs = [...new Set(DATA.stations.map(s => s.prov).filter(Boolean))].sort((a, b) => a.localeCompare(b, "th"));
+  const provs = [...new Set([...DATA.stations.map(s => s.prov), ...Object.keys(PROV_BY_NAME)].filter(Boolean))].sort((a, b) => a.localeCompare(b, "th"));
   $("#province").innerHTML = '<option value="">ทุกจังหวัด</option>' + provs.map(p => `<option ${p === S.province ? "selected" : ""}>${esc(p)}</option>`).join("");
   document.querySelectorAll("#range button").forEach(b => b.setAttribute("aria-pressed", String(Number(b.dataset.h) === S.hours)));
-  $("#layers").innerHTML = LAYER_DEFS.map(([k, label]) =>
+  $("#areaMetric").hidden = !HAS_GEO; $("#areaMetric").value = S.metric;
+  $("#hotspotTab").hidden = !HAS_GEO;
+  $("#layers").innerHTML = LAYER_DEFS.filter(([k]) => k !== "area" || HAS_GEO).map(([k, label]) =>
     `<label class="chip"><input type="checkbox" data-layer="${k}" ${S.layers.has(k) ? "checked" : ""}>${label}</label>`).join("");
   document.querySelectorAll("[data-layer]").forEach(cb => cb.addEventListener("change", () => {
     cb.checked ? S.layers.add(cb.dataset.layer) : S.layers.delete(cb.dataset.layer);
@@ -641,6 +765,8 @@ function applyTheme(t) {
   S.province = DATA.province || "";
   initMap();
   renderFilters();
+  $("#areaMetric").addEventListener("change", e => { S.metric = e.target.value; store.set("tf.metric", S.metric); renderArea(); renderLegend(); if (S.tab === "hotspots") renderTab(); });
+  if (HAS_GEO) { S.tab = "hotspots"; }
   $("#province").addEventListener("change", e => { S.province = e.target.value; S.selected = null; S.fit = true; renderAll(); });
   document.querySelectorAll("#range button").forEach(b => b.addEventListener("click", () => {
     S.hours = Number(b.dataset.h); store.set("tf.hours", S.hours);

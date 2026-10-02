@@ -1,0 +1,6 @@
+{"type":"FeatureCollection","features":[
+ {"type":"Feature","properties":{"tam_code":"500105","tam_th":"ช้างคลาน","amp_th":"เมืองเชียงใหม่","pro_code":"50","pro_th":"เชียงใหม่","area_sqkm":2.0},
+  "geometry":{"type":"MultiPolygon","coordinates":[[[[98.99,18.77],[99.01,18.77],[99.01,18.79],[98.99,18.79],[98.99,18.77]]]]}},
+ {"type":"Feature","properties":{"tam_code":"500106","tam_th":"วัดเกต","amp_th":"เมืองเชียงใหม่","pro_code":"50","pro_th":"เชียงใหม่","area_sqkm":4.0},
+  "geometry":{"type":"MultiPolygon","coordinates":[[[[99.01,18.77],[99.03,18.77],[99.03,18.79],[99.01,18.79],[99.01,18.77]],[[99.015,18.775],[99.02,18.775],[99.02,18.78],[99.015,18.78],[99.015,18.775]]]]}}
+]}
