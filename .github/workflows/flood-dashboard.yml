@@ -1,0 +1,85 @@
+# ดึงข้อมูลน้ำท่วมทุกชั่วโมง → สร้าง dashboard → ขึ้น GitHub Pages ให้ทีมเปิดดู
+#
+# ตั้งค่าครั้งเดียว:
+#   1. Settings → Secrets and variables → Actions → New repository secret
+#        GISTDA_API_KEY  (และ TMD_API_TOKEN ถ้ามี)
+#   2. Settings → Pages → Build and deployment → Source: GitHub Actions
+#   3. merge ไฟล์นี้เข้า default branch (schedule ทำงานเฉพาะบน default branch)
+#   4. Actions → "Flood dashboard" → Run workflow เพื่อรันครั้งแรก
+name: Flood dashboard
+
+on:
+  schedule:
+    - cron: "17 * * * *"   # ทุกชั่วโมง นาทีที่ 17 (UTC) — เลี่ยงนาทีที่ 0 ซึ่งคิวแน่น
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "ฝังข้อมูลย้อนหลังกี่วันในหน้า dashboard"
+        default: "7"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: flood-dashboard
+  cancel-in-progress: false
+
+env:
+  KEEP_DAYS: "60"   # เก็บประวัติในฐานข้อมูลกี่วัน
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - run: pip install .
+
+      # ฐานข้อมูลประวัติถูกส่งต่อระหว่างรอบด้วย cache (รันทุกชั่วโมงจึงไม่หมดอายุ)
+      - name: Restore history
+        uses: actions/cache/restore@v4
+        with:
+          path: data
+          key: thaiflood-db-${{ github.run_id }}
+          restore-keys: thaiflood-db-
+
+      - name: Collect
+        env:
+          GISTDA_API_KEY: ${{ secrets.GISTDA_API_KEY }}
+          TMD_API_TOKEN: ${{ secrets.TMD_API_TOKEN }}
+        # แหล่งที่ล่มบางแหล่งไม่ควรทำให้หน้าเว็บไม่อัปเดต
+        run: thaiflood collect || echo "::warning::ทุกแหล่งดึงข้อมูลไม่สำเร็จในรอบนี้"
+
+      - name: Prune old data
+        run: thaiflood prune --keep-days "$KEEP_DAYS"
+
+      - name: Build dashboard
+        run: |
+          mkdir -p site
+          thaiflood dashboard site/index.html --days "${{ github.event.inputs.days || '7' }}"
+          thaiflood stats
+
+      - name: Save history
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: data
+          key: thaiflood-db-${{ github.run_id }}
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - id: deploy
+        uses: actions/deploy-pages@v4
