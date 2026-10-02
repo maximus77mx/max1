@@ -1,4 +1,4 @@
-"""คำสั่ง: thaiflood <sources|collect|schedule|backfill|stats|latest|reports|export|import-report>"""
+"""คำสั่ง: thaiflood <sources|collect|schedule|backfill|stats|latest|reports|export|dashboard|prune|import-report>"""
 
 from __future__ import annotations
 
@@ -170,6 +170,13 @@ def cmd_dashboard(args: argparse.Namespace, settings: Settings) -> int:
     return 0
 
 
+def cmd_prune(args: argparse.Namespace, settings: Settings) -> int:
+    with _store(settings) as store:
+        rows, dirs = store.prune(args.keep_days)
+    print(f"ลบ {rows} แถว และโฟลเดอร์ raw {dirs} โฟลเดอร์ ที่เก่ากว่า {args.keep_days} วัน")
+    return 0
+
+
 def cmd_import_report(args: argparse.Namespace, settings: Settings) -> int:
     """นำเข้ารายงานที่กรอกเอง (JSON object หรือ list) เช่นตัวเลขจาก PDF ของ ปภ."""
     data = json.loads(Path(args.file).read_text(encoding="utf-8"))
@@ -232,6 +239,10 @@ def build_parser() -> argparse.ArgumentParser:
     d.add_argument("--province", help="ฝังเฉพาะจังหวัดนี้")
     d.add_argument("--collect", action="store_true", help="ดึงข้อมูลใหม่ทุกแหล่งก่อนสร้าง")
     d.set_defaults(func=cmd_dashboard)
+
+    pr = sub.add_parser("prune", help="ลบข้อมูลเก่าเพื่อคุมขนาดฐานข้อมูล")
+    pr.add_argument("--keep-days", type=int, required=True)
+    pr.set_defaults(func=cmd_prune)
 
     i = sub.add_parser("import-report", help="นำเข้ารายงานจากไฟล์ JSON")
     i.add_argument("file")

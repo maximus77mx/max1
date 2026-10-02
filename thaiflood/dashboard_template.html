@@ -625,6 +625,8 @@ function applyTheme(t) {
   document.querySelectorAll("#tabs button").forEach(b => b.addEventListener("click", () => { S.tab = b.dataset.tab; S.q = ""; renderTab(); }));
   let rz; addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { renderDetail(); if (S.tab === "forecast") renderForecast(); }, 150); });
   renderAll();
+  // เมื่อเปิดผ่านเว็บ (ไม่ใช่ไฟล์ในเครื่อง) โหลดหน้าใหม่ทุก 15 นาทีเพื่อรับข้อมูลรอบล่าสุด
+  if (location.protocol.startsWith("http")) setInterval(() => { if (document.visibilityState === "visible") location.reload(); }, 15 * 60e3);
 })();
 </script>
 </body>

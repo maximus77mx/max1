@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import csv
 import json
+import shutil
 import sqlite3
+from datetime import timedelta
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -179,6 +181,22 @@ class Store:
         sql += " ORDER BY COALESCE(published_at, collected_at) DESC LIMIT ?"
         args.append(limit)
         return [dict(r) for r in self.conn.execute(sql, args)]
+
+    def prune(self, keep_days: int) -> tuple[int, int]:
+        """ลบ observations ที่เก่ากว่า keep_days และโฟลเดอร์ raw ที่เก่ากว่านั้น (คืน (แถว, โฟลเดอร์))"""
+        cutoff = now_th() - timedelta(days=keep_days)
+        n_rows = self.conn.execute("DELETE FROM observations WHERE observed_at < ?", (cutoff.isoformat(),)).rowcount
+        self.conn.execute("DELETE FROM runs WHERE started_at < ?", (cutoff.isoformat(),))
+        self.conn.commit()
+        self.conn.execute("VACUUM")
+        n_dirs = 0
+        if self.raw_dir and self.raw_dir.exists():
+            day = cutoff.strftime("%Y-%m-%d")
+            for folder in self.raw_dir.glob("*/*"):
+                if folder.is_dir() and folder.name < day:
+                    shutil.rmtree(folder)
+                    n_dirs += 1
+        return n_rows, n_dirs
 
     def stats(self) -> list[dict[str, Any]]:
         sql = (

@@ -55,6 +55,23 @@ thaiflood dashboard --collect               # ดึงข้อมูลให�
 
 แผนที่พื้นหลังกับไลบรารี Leaflet โหลดจากอินเทอร์เน็ต ถ้าออฟไลน์ แผนที่จะไม่ขึ้น แต่ตัวเลขสรุป กราฟ ตาราง และรายงานยังใช้งานได้
 
+### ขึ้นออนไลน์ให้ทีมใช้ (GitHub Actions + GitHub Pages)
+
+`.github/workflows/flood-dashboard.yml` ทำงานทุกชั่วโมง: ดึงข้อมูล → ลบข้อมูลที่เก่ากว่า 60 วัน → สร้าง dashboard → ขึ้น Pages
+ฐานข้อมูลประวัติถูกส่งต่อระหว่างรอบด้วย Actions cache ส่วนหน้าเว็บจะโหลดใหม่เองทุก 15 นาที
+
+ตั้งค่าครั้งเดียว:
+1. **Settings → Secrets and variables → Actions** → เพิ่ม `GISTDA_API_KEY` (และ `TMD_API_TOKEN` ถ้ามี)
+2. **Settings → Pages → Source:** เลือก **GitHub Actions**
+3. merge branch นี้เข้า `master` (schedule ทำงานเฉพาะบน default branch)
+4. **Actions → Flood dashboard → Run workflow** เพื่อรันรอบแรก
+
+จากนั้นแชร์ลิงก์ `https://maximus77mx.github.io/max1/` ให้ทีม
+
+หมายเหตุ: GitHub Pages ของ repo public เปิดดูได้ทุกคนที่มีลิงก์ (key ไม่หลุด เพราะอยู่ใน Secret)
+ถ้าต้องจำกัดเฉพาะทีม ใช้ Cloudflare Pages + Cloudflare Access หรือเซิร์ฟเวอร์ภายในที่รัน `thaiflood dashboard` ด้วย cron แทน
+และ runner ของ GitHub อยู่ต่างประเทศ ถ้าเว็บหน่วยงานไหนบล็อก IP ต่างประเทศ แหล่งนั้นจะดึงไม่ได้ (ดู log ในแท็บ Actions)
+
 ### ข้อมูลย้อนหลัง (Historical)
 
 1. **สะสมเอง** — ให้ `thaiflood schedule` รันต่อเนื่อง (systemd/Docker/cron) ข้อมูลทุกรอบจะถูก upsert

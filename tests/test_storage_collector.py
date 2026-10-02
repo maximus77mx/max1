@@ -109,3 +109,16 @@ def test_cli_stats_and_import(tmp_path, capsys):
     assert main(["--data-dir", str(tmp_path), "collect", "nope"]) == 2
     assert main(["--data-dir", str(tmp_path), "latest"]) == 0
     assert "manual" in capsys.readouterr().out
+
+
+def test_prune_removes_old_rows(tmp_path):
+    from datetime import timedelta
+
+    from thaiflood.utils import now_th
+
+    old = (now_th() - timedelta(days=40)).isoformat()
+    with Store(tmp_path / "db.sqlite3", tmp_path / "raw") as store:
+        store.save(CollectResult("thaiwater", observations=[obs(1, old), obs(2, now_th().isoformat())]))
+        (tmp_path / "raw" / "thaiwater" / "2000-01-01").mkdir(parents=True)
+        assert store.prune(30) == (1, 1)
+        assert [r["value"] for r in store.query_observations()] == [2]
