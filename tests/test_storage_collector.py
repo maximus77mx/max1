@@ -184,3 +184,22 @@ def test_gistda_probe_masks_key_and_reports_shape():
     lines = GistdaSource(settings, session=Session()).probe()
     assert len(lines) == 8 and all("SECRET" not in l for l in lines)
     assert "numberMatched" in lines[0] and "features=0" in lines[0]
+
+
+def test_respect_intervals_skips_recent_success(tmp_path, monkeypatch):
+    calls = []
+
+    class Src:
+        def __init__(self, settings):
+            pass
+
+        def collect(self):
+            calls.append(1)
+            return CollectResult("thaiwater", observations=[obs(1)])
+
+    monkeypatch.setattr(collector, "SOURCES", {"thaiwater": Src})
+    with Store(tmp_path / "db.sqlite3") as store:
+        collector.collect(None, Settings(), store, respect_intervals=True)
+        collector.collect(None, Settings(), store, respect_intervals=True)  # ยังไม่ถึงรอบ
+        collector.collect(None, Settings(), store)  # ไม่สนรอบ
+    assert len(calls) == 2

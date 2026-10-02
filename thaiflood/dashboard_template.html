@@ -741,6 +741,26 @@ function idwRainAt(lat, lon) {
   }
   return den ? { v: num / den, n } : null;
 }
+// ผลกระทบในพื้นที่ท่วม (GISTDA รวมรายตำบลจากหกเหลี่ยม H3)
+const IMPACT_LABEL = {
+  building: ["อาคาร", "หลัง", 0], hospital: ["สถานพยาบาล", "แห่ง", 0], school: ["โรงเรียน", "แห่ง", 0],
+  length_road: ["ถนน", "กม.", 1], rice_area: ["นาข้าว", "ไร่", 0], cassava_area: ["มันสำปะหลัง", "ไร่", 0],
+  maize_area: ["ข้าวโพด", "ไร่", 0], sugarcane_area: ["อ้อย", "ไร่", 0], para_area: ["ยางพารา", "ไร่", 0],
+  palm_area: ["ปาล์ม", "ไร่", 0], population: ["ประชากร", "คน", 0], household: ["ครัวเรือน", "ครัวเรือน", 0],
+};
+function impactHtml(tc) {
+  const sum = {};
+  for (const r of rows("flood_area")) {
+    if (r.st.tc !== tc || !r.st.extra) continue;
+    for (const k of Object.keys(IMPACT_LABEL)) if (r.st.extra[k]) sum[k] = (sum[k] || 0) + r.st.extra[k];
+  }
+  const keys = Object.keys(IMPACT_LABEL).filter(k => sum[k]);
+  if (!keys.length) return "";
+  return `<h3>ผลกระทบในพื้นที่ท่วม (GISTDA)</h3><div class="stats" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${keys.map(k => {
+    const [label, unit, d] = IMPACT_LABEL[k];
+    return `<span class="badge">${label} <b>${num(sum[k], d)}</b> ${unit}</span>`;
+  }).join("")}</div>`;
+}
 function renderTambonDetail(el) {
   const tc = S.tambon, meta = tmeta(tc);
   const t = areaStats().T[tc] || { flood: 0, rain: null, crit: 0 };
@@ -766,6 +786,7 @@ function renderTambonDetail(el) {
       <div>สถานีวิกฤต/เฝ้าระวัง<strong>${num(t.crit || 0, 0)}</strong></div>
     </div>
     ${est ? `<div class="where">ไม่มีสถานีวัดฝนในตำบล — ประมาณจาก ${est.n} สถานีในรัศมี ~40 กม.</div>` : ""}
+    ${impactHtml(tc)}
     <h3>สถานีในตำบล (${inside.length})</h3>
     <div class="stlist">${inside.length ? inside.map(r => stationButton(r)).join("") : '<div class="where">ไม่มีสถานีตรวจวัดในตำบลนี้</div>'}</div>
     ${near.length ? `<h3>สถานีใกล้เคียง (ไม่เกิน 25 กม.)</h3><div class="stlist">${near.map(x => stationButton(x.r, ` · ${num(x.d, 1)} กม.`)).join("")}</div>` : (layer ? "" : '<h3>สถานีใกล้เคียง</h3><div class="where">กำลังโหลดขอบเขตตำบล…</div>')}

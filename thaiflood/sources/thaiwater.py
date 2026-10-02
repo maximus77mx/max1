@@ -41,6 +41,17 @@ def _rows(payload: Any, *keys: str) -> list[dict[str, Any]]:
     return []
 
 
+def _describe(node: Any, depth: int = 0) -> str:
+    """อธิบายโครงสร้าง JSON แบบย่อ (ใช้ใน log เมื่อ parser อ่านไม่ออก)"""
+    if isinstance(node, dict):
+        if depth >= 2:
+            return f"dict({len(node)})"
+        return "{" + ", ".join(f"{k}: {_describe(v, depth + 1)}" for k, v in list(node.items())[:12]) + "}"
+    if isinstance(node, list):
+        return f"list[{len(node)}]" + (f" of {_describe(node[0], depth + 1)}" if node and depth < 2 else "")
+    return type(node).__name__
+
+
 def _geo(row: dict[str, Any]) -> dict[str, str | None]:
     geocode = row.get("geocode") or {}
     return {
@@ -169,6 +180,8 @@ class ThaiWaterSource(Source):
                 obs = parser(payload)
                 if not obs or all(o.value is None for o in obs):
                     keys = list(payload)[:8] if isinstance(payload, dict) else type(payload).__name__
+                    if isinstance(payload, dict) and label == "dam" and "dam" in payload:
+                        keys = f"{keys}, dam={_describe(payload['dam'])}"
                     sample = ""
                     if obs:  # เจอแถวแต่อ่านค่าไม่ได้ — แสดงชื่อฟิลด์ของแถวแรกไว้แก้ parser
                         first = _rows(payload, "dam_data", "dam_daily", "dam", "waterlevel_data", "rain_data")[:1]
