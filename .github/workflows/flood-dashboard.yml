@@ -34,7 +34,7 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
@@ -61,7 +61,10 @@ jobs:
           GISTDA_API_KEY: ${{ secrets.GISTDA_API_KEY }}
           TMD_API_TOKEN: ${{ secrets.TMD_API_TOKEN }}
         # แหล่งที่ล่มบางแหล่งไม่ควรทำให้หน้าเว็บไม่อัปเดต
-        run: thaiflood collect || echo "::warning::ทุกแหล่งดึงข้อมูลไม่สำเร็จในรอบนี้"
+        # แต่ละแหล่งดึงตามรอบของตัวเอง (ThaiWater ทุกชั่วโมง, GISTDA ทุก 12 ชม. ฯลฯ) — กดรันเองจะดึงทุกแหล่ง
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then thaiflood collect; else thaiflood collect --respect-intervals; fi \
+            || echo "::warning::ทุกแหล่งดึงข้อมูลไม่สำเร็จในรอบนี้"
 
       - name: Probe GISTDA (diagnostic)
         if: github.event_name == 'workflow_dispatch'  # เฉพาะตอนกดรันเอง ไม่ยิงทุกชั่วโมง

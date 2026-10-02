@@ -198,6 +198,13 @@ class Store:
                     n_dirs += 1
         return n_rows, n_dirs
 
+    def last_success(self, source: str) -> str | None:
+        """เวลาเริ่มของรอบล่าสุดที่ได้ข้อมูลจริง (observations หรือ reports > 0)"""
+        row = self.conn.execute(
+            "SELECT MAX(started_at) FROM runs WHERE source = ? AND (observations > 0 OR reports > 0)", (source,)
+        ).fetchone()
+        return row[0] if row else None
+
     def stats(self) -> list[dict[str, Any]]:
         sql = (
             "SELECT source, kind, COUNT(*) AS n, COUNT(DISTINCT station_id) AS stations, "

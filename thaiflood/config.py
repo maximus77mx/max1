@@ -47,6 +47,9 @@ class Settings:
     # --- GISTDA — พื้นที่น้ำท่วมจากดาวเทียม (ต้องขอ API key ที่ api-gateway.gistda.or.th) ---
     gistda_base: str = _env("GISTDA_BASE", "https://api-gateway.gistda.or.th/api/2.0/resources/features/flood")
     gistda_api_key: str | None = _env("GISTDA_API_KEY")
+    gistda_page_size: int = int(_env("GISTDA_PAGE_SIZE", "5000"))
+    gistda_read_timeout: float = float(_env("GISTDA_READ_TIMEOUT", "120"))
+    gistda_time_budget: float = float(_env("GISTDA_TIME_BUDGET", "900"))  # วินาที — ข้อมูล 7 วันมีได้เป็นแสนรายการ
 
     # --- ปภ. — รายงานสถานการณ์สาธารณภัยรายวัน ---
     disaster_url: str = _env("DISASTER_URL", "https://www.disaster.go.th/th/sub-news-category-01.php")
@@ -106,6 +109,6 @@ DEFAULT_INTERVALS: dict[str, int] = {
     "tmd": 3 * 60 * 60,        # พยากรณ์อัปเดตทุก ~3 ชม.
     "bma": 30 * 60,            # จุดน้ำท่วมขัง กทม. เปลี่ยนเร็วช่วงฝนตก
     "onwr": 3 * 60 * 60,
-    "gistda": 24 * 60 * 60,    # ภาพดาวเทียมรายวัน
+    "gistda": 12 * 60 * 60,    # ภาพดาวเทียมรายวัน (ข้อมูล 7 วันเป็นแสนรายการ — ไม่ดึงถี่)
     "disaster": 12 * 60 * 60,  # รายงาน ปภ. ออกวันละ 1–2 ครั้ง
 }

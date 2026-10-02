@@ -36,7 +36,7 @@ def cmd_collect(args: argparse.Namespace, settings: Settings) -> int:
         print(f"ไม่รู้จักแหล่งข้อมูล: {', '.join(unknown)} (มี: {', '.join(SOURCES)})", file=sys.stderr)
         return 2
     with _store(settings) as store:
-        summaries = collect(args.source or None, settings, store)
+        summaries = collect(args.source or None, settings, store, respect_intervals=args.respect_intervals)
     failed = 0
     for s in summaries:
         flag = "OK " if not s.errors else ("ERR" if not (s.observations or s.reports) else "WARN")
@@ -44,7 +44,7 @@ def cmd_collect(args: argparse.Namespace, settings: Settings) -> int:
         print(f"[{flag}] {s.source:10s} obs={s.observations:<6d} reports={s.reports:<4d}")
         for e in s.errors:
             print(f"       - {e}")
-    return 1 if failed == len(summaries) else 0
+    return 1 if summaries and failed == len(summaries) else 0
 
 
 def cmd_schedule(args: argparse.Namespace, settings: Settings) -> int:
@@ -206,6 +206,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     c = sub.add_parser("collect", help="ดึงข้อมูลหนึ่งรอบ")
     c.add_argument("source", nargs="*", metavar="SOURCE", help=f"เว้นว่าง = ทุกแหล่ง ({', '.join(SOURCES)})")
+    c.add_argument("--respect-intervals", action="store_true", help="ข้ามแหล่งที่ยังไม่ถึงรอบของตัวเอง (ใช้กับ cron รายชั่วโมง)")
     c.set_defaults(func=cmd_collect)
 
     s = sub.add_parser("schedule", help="รันค้างไว้ ดึงตามรอบของแต่ละแหล่ง")

@@ -18,7 +18,10 @@ from .storage import Store
 from .utils import now_th
 
 # ฟิลด์ใน extra ที่หน้า dashboard ใช้ (ตัดที่เหลือทิ้งเพื่อให้ไฟล์เล็ก)
-_EXTRA_KEYS = ("min_bank", "ground_level", "storage_mcm", "inflow_mcm", "released_mcm", "river", "storage_percent")
+_EXTRA_KEYS = ("min_bank", "ground_level", "storage_mcm", "inflow_mcm", "released_mcm", "river", "storage_percent",
+               # ผลกระทบในพื้นที่ท่วม (GISTDA)
+               "cells", "period", "building", "hospital", "school", "length_road", "rice_area", "cassava_area",
+               "maize_area", "sugarcane_area", "para_area", "palm_area", "population", "household")
 
 
 def _latest_geojson(raw_dir: Path | None) -> dict[str, Any] | None:

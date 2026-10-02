@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass
+from datetime import datetime
 
 from .config import DEFAULT_INTERVALS, Settings
 from .sources import SOURCES
@@ -22,11 +23,26 @@ class RunSummary:
     errors: list[str]
 
 
-def collect(names: list[str] | None, settings: Settings, store: Store) -> list[RunSummary]:
+def is_due(name: str, store: Store, intervals: dict[str, int] | None = None) -> bool:
+    """ถึงรอบหรือยัง — นับจากรอบล่าสุดที่ได้ข้อมูลจริง (รอบที่ล้มเหลวจะลองใหม่ทันทีรอบถัดไป)"""
+    last = store.last_success(name)
+    if not last:
+        return True
+    every = (intervals or DEFAULT_INTERVALS).get(name, 0)
+    elapsed = (now_th() - datetime.fromisoformat(last)).total_seconds()
+    return elapsed >= every - 5 * 60  # เผื่อ 5 นาที ให้ cron ที่คลาดเล็กน้อยยังนับว่าถึงรอบ
+
+
+def collect(
+    names: list[str] | None, settings: Settings, store: Store, respect_intervals: bool = False
+) -> list[RunSummary]:
     summaries = []
     for name in names or list(SOURCES):
         if name not in SOURCES:
             raise KeyError(f"ไม่รู้จักแหล่งข้อมูล '{name}' (มี: {', '.join(SOURCES)})")
+        if respect_intervals and not is_due(name, store):
+            log.info("%s: ยังไม่ถึงรอบ (ได้ข้อมูลล่าสุดเมื่อ %s) — ข้าม", name, store.last_success(name))
+            continue
         started = now_th().isoformat()
         try:
             result = SOURCES[name](settings).collect()

@@ -96,3 +96,20 @@ def test_utils():
     assert to_iso("2024-10-01T00:00:00Z") == "2024-10-01T00:00:00+00:00"
     dt = parse_thai_date("วันที่ ๓ ตุลาคม ๒๕๖๗ เวลา 08.30 น.")
     assert (dt.year, dt.month, dt.day, dt.hour, dt.minute) == (2024, 10, 3, 8, 30)
+
+
+def test_gistda_h3_cells_aggregate_per_tambon():
+    from thaiflood.sources.gistda import parse_flood
+
+    cells = {"features": [
+        {"properties": {"tb_idn": "500105", "tb_tn": "ช้างคลาน", "ap_tn": "เมือง", "pv_tn": "เชียงใหม่",
+                        "f_area": 368500, "h3_area": 737000, "building": 12, "length_road": 1.5, "_createdAt": "2026-10-01T03:00:00Z"}},
+        {"properties": {"tb_idn": "500105", "f_area": 737000, "h3_area": 737000, "building": 3, "_createdAt": "2026-10-02T03:00:00Z"}},
+        {"properties": {"tb_idn": "500106", "f_area": 230, "h3_area": 460}},
+    ]}
+    obs = {o.station_id: o for o in parse_flood(cells, "7days")}
+    a = obs["500105"]
+    assert a.value == round((368500 + 737000) / 1600, 2)  # ตร.ม. → ไร่
+    assert a.extra["cells"] == 2 and a.extra["building"] == 15 and a.extra["length_road"] == 1.5
+    assert a.observed_at.startswith("2026-10-02") and a.province == "เชียงใหม่"
+    assert obs["500106"].value == 230  # h3_area เป็นไร่อยู่แล้ว
