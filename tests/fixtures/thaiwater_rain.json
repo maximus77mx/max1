@@ -1,0 +1,4 @@
+{"result":"OK","data":[
+ {"rain_24h":"125.5","rainfall_datetime":"2024-10-01 07:00","station":{"id":5001,"tele_station_name":{"th":"แม่ริม"},"tele_station_lat":18.9,"tele_station_long":98.94},"geocode":{"province_name":{"th":"เชียงใหม่"},"amphoe_name":{"th":"แม่ริม"}}},
+ {"rain_24h":0,"rainfall_datetime":"2024-10-01 07:00","station":{"id":5002,"tele_station_name":{"th":"บางนา"}},"geocode":{"province_name":{"th":"กรุงเทพมหานคร"}}}
+]}

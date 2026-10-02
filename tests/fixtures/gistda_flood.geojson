@@ -1,0 +1,5 @@
+{"type":"FeatureCollection","features":[
+ {"type":"Feature","id":"f1","properties":{"tb_idn":"500101","tb_tn":"ศรีภูมิ","ap_tn":"เมืองเชียงใหม่","pv_tn":"เชียงใหม่","area_rai":1520.5,"f_date":"2024-10-01"},
+  "geometry":{"type":"Polygon","coordinates":[[[99.0,18.8],[99.01,18.8],[99.01,18.81],[99.0,18.81],[99.0,18.8]]]}},
+ {"type":"Feature","properties":{"tb_idn":"570101","pv_tn":"เชียงราย","area_km2":2},"geometry":null}
+]}

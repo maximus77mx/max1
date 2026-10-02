@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "thaiflood"
+version = "0.1.0"
+description = "เครื่องมือรวบรวมข้อมูลน้ำท่วมประเทศไทย (Realtime + Historical)"
+requires-python = ">=3.10"
+dependencies = ["requests>=2.28"]
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[project.scripts]
+thaiflood = "thaiflood.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["thaiflood*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

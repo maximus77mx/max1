@@ -1,0 +1,9 @@
+{"result":"OK","waterlevel_data":{"result":"OK","data":[
+ {"id":1,"waterlevel_datetime":"2024-10-01 07:00","waterlevel_m":"2.10","waterlevel_msl":"25.31","storage_percent":"96.5","situation_level":5,
+  "station":{"id":101,"tele_station_name":{"th":"สะพานนวรัฐ","en":"Nawarat Bridge"},"tele_station_lat":"18.7867","tele_station_long":"99.0012","min_bank":"25.20","ground_level":"21.0"},
+  "geocode":{"province_name":{"th":"เชียงใหม่"},"amphoe_name":{"th":"เมืองเชียงใหม่"},"tumbon_name":{"th":"วัดเกต"}},
+  "agency":{"agency_shortname":{"th":"สสน."}}},
+ {"id":2,"waterlevel_datetime":"2024-10-01 07:00","waterlevel_msl":"14.02","situation_level":3,
+  "station":{"id":102,"tele_station_name":{"th":"ท่าวาสุกรี"},"tele_station_lat":13.77,"tele_station_long":100.50},
+  "geocode":{"province_name":{"th":"กรุงเทพมหานคร"}}}
+]}}

@@ -1,0 +1,4 @@
+{"result":"OK","data":[
+ {"dam_date":"2024-10-01","dam_storage":"9500.5","dam_storage_percent":"70.4","dam_inflow":"55.1","dam_released":"30.2",
+  "dam":{"id":1,"dam_name":{"th":"เขื่อนภูมิพล"},"dam_lat":17.24,"dam_long":98.97},"geocode":{"province_name":{"th":"ตาก"}}}
+]}
