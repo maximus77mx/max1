@@ -10,6 +10,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 from .collector import collect, run_schedule
+from .dashboard import default_output_name, write_dashboard
 from .config import DEFAULT_INTERVALS, Settings
 from .sources import SOURCES
 from .sources.bulletins import report_from_dict
@@ -160,6 +161,15 @@ def cmd_export(args: argparse.Namespace, settings: Settings) -> int:
     return 0
 
 
+def cmd_dashboard(args: argparse.Namespace, settings: Settings) -> int:
+    with _store(settings) as store:
+        if args.collect:
+            collect(None, settings, store)
+        out = write_dashboard(store, Path(args.output or default_output_name()), days=args.days, province=args.province)
+    print(f"สร้าง dashboard: {out.resolve()} ({out.stat().st_size / 1024:,.0f} KB) — เปิดด้วยเบราว์เซอร์ได้เลย")
+    return 0
+
+
 def cmd_import_report(args: argparse.Namespace, settings: Settings) -> int:
     """นำเข้ารายงานที่กรอกเอง (JSON object หรือ list) เช่นตัวเลขจาก PDF ของ ปภ."""
     data = json.loads(Path(args.file).read_text(encoding="utf-8"))
@@ -215,6 +225,13 @@ def build_parser() -> argparse.ArgumentParser:
     e.add_argument("--since")
     e.add_argument("--until")
     e.set_defaults(func=cmd_export)
+
+    d = sub.add_parser("dashboard", help="สร้าง Interactive HTML ไฟล์เดียว จากข้อมูลที่เก็บไว้")
+    d.add_argument("output", nargs="?", help="ชื่อไฟล์ (ค่าเริ่มต้น thaiflood_YYYYMMDD_HHMM.html)")
+    d.add_argument("--days", type=int, default=7, help="ฝังข้อมูลย้อนหลังกี่วัน (ยิ่งมากไฟล์ยิ่งใหญ่)")
+    d.add_argument("--province", help="ฝังเฉพาะจังหวัดนี้")
+    d.add_argument("--collect", action="store_true", help="ดึงข้อมูลใหม่ทุกแหล่งก่อนสร้าง")
+    d.set_defaults(func=cmd_dashboard)
 
     i = sub.add_parser("import-report", help="นำเข้ารายงานจากไฟล์ JSON")
     i.add_argument("file")

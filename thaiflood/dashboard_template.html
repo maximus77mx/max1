@@ -1,0 +1,631 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>สถานการณ์น้ำท่วมประเทศไทย</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f6f5f2;
+  --surface-1: #fcfcfb;
+  --surface-2: #f0efec;
+  --border: #e2e0da;
+  --grid: #ebe9e4;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted: #7a7974;
+  --accent: #2a78d6;
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --seq-1: #9ec5f4; --seq-2: #5598e7; --seq-3: #256abf; --seq-4: #104281;
+  --good: #0ca30c; --warning: #fab219; --serious: #ec835a; --critical: #d03b3b;
+  --neutral: #a3a29c;
+  --flood: #4a3aa7;
+  --shadow: 0 1px 2px rgb(0 0 0 / .06);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #121211; --surface-1: #1a1a19; --surface-2: #232321; --border: #33332f; --grid: #2a2a27;
+    --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #8e8d85;
+    --accent: #3987e5; --series-1: #3987e5; --series-2: #d95926;
+    --seq-1: #184f95; --seq-2: #2a78d6; --seq-3: #5598e7; --seq-4: #9ec5f4;
+    --neutral: #6b6a64; --flood: #9085e9; --shadow: none;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #121211; --surface-1: #1a1a19; --surface-2: #232321; --border: #33332f; --grid: #2a2a27;
+  --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #8e8d85;
+  --accent: #3987e5; --series-1: #3987e5; --series-2: #d95926;
+  --seq-1: #184f95; --seq-2: #2a78d6; --seq-3: #5598e7; --seq-4: #9ec5f4;
+  --neutral: #6b6a64; --flood: #9085e9; --shadow: none;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--text-primary);
+  font: 14px/1.5 "IBM Plex Sans Thai", system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap { max-width: 1440px; margin: 0 auto; padding: 16px; }
+header { display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }
+header h1 { font-size: 20px; font-weight: 600; margin: 0; }
+header .sub { color: var(--text-secondary); font-size: 13px; }
+header .spacer { flex: 1; }
+.note { background: var(--surface-2); border: 1px dashed var(--border); border-radius: 8px; padding: 6px 10px; font-size: 13px; color: var(--text-secondary); }
+button, select, input {
+  font: inherit; color: var(--text-primary); background: var(--surface-1);
+  border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; min-height: 34px;
+}
+button { cursor: pointer; }
+button:hover, select:hover { border-color: var(--text-muted); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surface-1); }
+.seg button { border: 0; border-radius: 0; min-height: 32px; background: transparent; color: var(--text-secondary); }
+.seg button + button { border-left: 1px solid var(--border); }
+.seg button[aria-pressed="true"] { background: var(--surface-2); color: var(--text-primary); font-weight: 500; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-1); cursor: pointer; user-select: none; font-size: 13px; }
+.chip input { margin: 0; min-height: 0; accent-color: var(--accent); }
+.kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
+.card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); }
+.kpi { padding: 12px 14px; min-width: 0; }
+.kpi .label { color: var(--text-secondary); font-size: 13px; }
+.kpi .value { font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.25; margin-top: 2px; }
+.kpi .value small { font-size: 14px; font-weight: 400; color: var(--text-secondary); margin-left: 4px; }
+.kpi .meta { color: var(--text-muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.main { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 12px; margin-bottom: 12px; }
+#map { height: 560px; border-radius: 12px; overflow: hidden; background: var(--surface-2); }
+.map-card { position: relative; }
+.legend { position: absolute; left: 10px; bottom: 10px; z-index: 500; background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 12px; color: var(--text-secondary); max-width: calc(100% - 20px); }
+.legend .row { display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.legend .row + .row { margin-top: 4px; }
+.legend b { color: var(--text-primary); font-weight: 500; margin-right: 2px; }
+.sw { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: -1px; margin-right: 4px; }
+.panel { padding: 14px; display: flex; flex-direction: column; min-height: 560px; }
+.panel h2 { font-size: 16px; font-weight: 600; margin: 0; }
+.panel .where { color: var(--text-secondary); font-size: 13px; }
+.panel .now { display: flex; gap: 16px; flex-wrap: wrap; margin: 10px 0; }
+.panel .now div { font-size: 12px; color: var(--text-secondary); }
+.panel .now strong { display: block; font-size: 20px; color: var(--text-primary); font-weight: 600; font-variant-numeric: tabular-nums; }
+.empty { color: var(--text-muted); padding: 24px 0; text-align: center; }
+.chart { position: relative; width: 100%; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart .axis text { fill: var(--text-muted); font-size: 11px; }
+.chart .gridline { stroke: var(--grid); stroke-width: 1; }
+.chart .ref { stroke: var(--critical); stroke-width: 1; stroke-dasharray: 4 3; }
+.chart .ref-label { fill: var(--text-secondary); font-size: 11px; }
+.tip { position: absolute; pointer-events: none; background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; font-size: 12px; box-shadow: 0 4px 12px rgb(0 0 0 / .12); white-space: nowrap; z-index: 10; display: none; }
+.tip .t { color: var(--text-muted); }
+.tip .v { font-weight: 600; font-variant-numeric: tabular-nums; }
+.badge { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--surface-2); color: var(--text-primary); white-space: nowrap; }
+.badge .sw { margin: 0; }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); padding: 0 12px; overflow-x: auto; }
+.tabs button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; color: var(--text-secondary); padding: 10px 8px; white-space: nowrap; }
+.tabs button[aria-selected="true"] { color: var(--text-primary); border-bottom-color: var(--accent); font-weight: 500; }
+.tabbody { padding: 12px; }
+.toolbar { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; align-items: center; }
+.toolbar .count { color: var(--text-muted); font-size: 12px; }
+.tablewrap { overflow-x: auto; max-height: 460px; overflow-y: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; font-weight: 500; color: var(--text-secondary); position: sticky; top: 0; background: var(--surface-1); cursor: pointer; white-space: nowrap; }
+th, td { padding: 7px 8px; border-bottom: 1px solid var(--grid); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+tbody tr { cursor: pointer; }
+tbody tr:hover { background: var(--surface-2); }
+tbody tr.sel { background: var(--surface-2); box-shadow: inset 3px 0 0 var(--accent); }
+.reports { display: grid; gap: 8px; }
+.report { padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; }
+.report a { color: var(--text-primary); font-weight: 500; text-decoration: none; }
+.report a:hover { text-decoration: underline; }
+.report .m { color: var(--text-secondary); font-size: 12px; margin-top: 2px; }
+.report .stats { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.fc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.fc { border: 1px solid var(--border); border-radius: 10px; padding: 10px; }
+.fc h3 { margin: 0 0 4px; font-size: 14px; font-weight: 500; }
+.fc .m { color: var(--text-muted); font-size: 12px; }
+.leaflet-container { font: inherit; background: var(--surface-2); }
+.leaflet-popup-content-wrapper, .leaflet-popup-tip, .leaflet-tooltip { background: var(--surface-1); color: var(--text-primary); border-color: var(--border); }
+.leaflet-control-layers { background: var(--surface-1) !important; color: var(--text-primary); border: 1px solid var(--border) !important; }
+.leaflet-control-attribution { background: color-mix(in srgb, var(--surface-1) 80%, transparent) !important; color: var(--text-muted) !important; }
+.leaflet-control-attribution a { color: var(--text-secondary) !important; }
+.leaflet-bar a { background: var(--surface-1) !important; color: var(--text-primary) !important; border-color: var(--border) !important; }
+.map-fallback { display: grid; place-items: center; height: 100%; color: var(--text-muted); padding: 24px; text-align: center; }
+@media (max-width: 1100px) { .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 860px) {
+  .main { grid-template-columns: 1fr; }
+  .panel { min-height: 0; }
+  #map { height: 420px; }
+}
+@media (max-width: 560px) {
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .kpi .value { font-size: 22px; }
+  .legend { position: static; margin: 8px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>สถานการณ์น้ำท่วมประเทศไทย</h1>
+      <div class="sub" id="sub"></div>
+    </div>
+    <div class="spacer"></div>
+    <div class="note" id="note" hidden></div>
+    <button id="theme" type="button" title="สลับธีม">ธีม: อัตโนมัติ</button>
+  </header>
+
+  <div class="filters" role="group" aria-label="ตัวกรอง">
+    <select id="province" aria-label="จังหวัด"><option value="">ทุกจังหวัด</option></select>
+    <div class="seg" id="range" role="group" aria-label="ช่วงเวลา">
+      <button type="button" data-h="24">24 ชม.</button>
+      <button type="button" data-h="72">3 วัน</button>
+      <button type="button" data-h="168">7 วัน</button>
+      <button type="button" data-h="0">ทั้งหมด</button>
+    </div>
+    <span id="layers" style="display:contents"></span>
+  </div>
+
+  <section class="kpis" id="kpis" aria-label="ตัวเลขสรุป"></section>
+
+  <section class="main">
+    <div class="card map-card">
+      <div id="map"></div>
+      <div class="legend" id="legend"></div>
+    </div>
+    <div class="card panel" id="detail" aria-live="polite"></div>
+  </section>
+
+  <section class="card">
+    <div class="tabs" role="tablist" id="tabs">
+      <button role="tab" data-tab="waterlevel">ระดับน้ำ</button>
+      <button role="tab" data-tab="rain_24h">ฝน 24 ชม.</button>
+      <button role="tab" data-tab="dam_storage">เขื่อน</button>
+      <button role="tab" data-tab="flood_area">พื้นที่ท่วม (ดาวเทียม)</button>
+      <button role="tab" data-tab="street_flood">น้ำท่วมขัง กทม.</button>
+      <button role="tab" data-tab="reports">รายงาน/ประกาศ</button>
+      <button role="tab" data-tab="forecast">พยากรณ์ฝน</button>
+    </div>
+    <div class="tabbody" id="tabbody"></div>
+  </section>
+</div>
+
+<script>
+const DATA = /*__DATA__*/null;
+
+// ---------- ค่าคงที่ ----------
+const KINDS = {
+  waterlevel:   { label: "ระดับน้ำ",            unit: "ม.รทก.", fmt: 2 },
+  rain_24h:     { label: "ฝน 24 ชม.",           unit: "มม.",    fmt: 1 },
+  dam_storage:  { label: "เขื่อน",               unit: "%",      fmt: 1 },
+  flood_area:   { label: "พื้นที่ท่วม",          unit: "ไร่",    fmt: 0 },
+  street_flood: { label: "น้ำท่วมขัง กทม.",      unit: "ซม.",    fmt: 0 },
+  rain_forecast:{ label: "พยากรณ์ฝน",           unit: "มม./ชม.", fmt: 1 },
+};
+// สถานะใช้สีสถานะ + ไอคอน + ข้อความเสมอ (ไม่สื่อด้วยสีอย่างเดียว)
+const STATUS = {
+  critical: { color: "var(--critical)", icon: "▲", label: "วิกฤต" },
+  serious:  { color: "var(--serious)",  icon: "◆", label: "เฝ้าระวัง" },
+  warning:  { color: "var(--warning)",  icon: "●", label: "ระวัง" },
+  good:     { color: "var(--good)",     icon: "✓", label: "ปกติ" },
+  neutral:  { color: "var(--neutral)",  icon: "○", label: "ไม่มีข้อมูล/น้อย" },
+};
+const WL_STATUS = { "ล้นตลิ่ง/วิกฤต": "critical", "มาก": "serious", "ปกติ": "good", "น้อย": "neutral", "น้อยวิกฤต": "warning" };
+const RAIN_STEPS = [ // เกณฑ์กรมอุตุฯ
+  { min: 90.1, label: "หนักมาก >90", v: "--seq-4", r: 9 },
+  { min: 35.1, label: "หนัก 35–90", v: "--seq-3", r: 7 },
+  { min: 10.1, label: "ปานกลาง 10–35", v: "--seq-2", r: 5 },
+  { min: 0.1,  label: "เล็กน้อย <10", v: "--seq-1", r: 4 },
+];
+
+function statusOf(st, value, rawStatus) {
+  switch (st.kind) {
+    case "waterlevel": return WL_STATUS[rawStatus] || "neutral";
+    case "dam_storage": return value == null ? "neutral" : value >= 100 ? "critical" : value >= 80 ? "serious" : value < 30 ? "warning" : "good";
+    case "street_flood": return value == null || value <= 0 ? "good" : value > 20 ? "critical" : value > 10 ? "serious" : "warning";
+    default: return null;
+  }
+}
+
+// ---------- utils ----------
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v.replace(/^var\((.*)\)$/, "$1")).trim();
+const num = (v, d = 1) => v == null || isNaN(v) ? "–" : Number(v).toLocaleString("th-TH", { minimumFractionDigits: d, maximumFractionDigits: d });
+const TH_TIME = { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bangkok" };
+const fmtTime = t => t ? new Date(t).toLocaleString("th-TH", TH_TIME) : "–";
+const fmtDay = t => new Date(t).toLocaleDateString("th-TH", { day: "numeric", month: "short", timeZone: "Asia/Bangkok" });
+const fmtHour = t => new Date(t).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bangkok" });
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+};
+function badge(statusKey) {
+  if (!statusKey) return "";
+  const s = STATUS[statusKey];
+  return `<span class="badge"><span class="sw" style="background:${s.color}"></span>${s.icon} ${s.label}</span>`;
+}
+
+// ---------- สถานะของหน้า ----------
+const S = {
+  province: "",
+  hours: Number(store.get("tf.hours") || 72),
+  layers: new Set(JSON.parse(store.get("tf.layers") || '["waterlevel","rain_24h","dam_storage","flood_area","street_flood"]')),
+  tab: "waterlevel",
+  selected: null,
+  sort: { key: "value", dir: -1 },
+  q: "",
+  fit: true,
+};
+const ANCHOR = (() => { // เวลาอ้างอิง = ข้อมูลล่าสุดที่มี (ไม่ใช่เวลาที่เปิดไฟล์)
+  let max = 0;
+  for (const [k, pts] of Object.entries(DATA?.series || {})) {
+    if (k.includes("rain_forecast")) continue;
+    for (const p of pts) { const t = Date.parse(p[0]); if (t > max) max = t; }
+  }
+  return max || Date.now();
+})();
+const BY_KEY = Object.fromEntries((DATA?.stations || []).map(s => [s.k, s]));
+
+function windowPoints(key) {
+  const pts = DATA.series[key] || [];
+  if (!S.hours) return pts;
+  const from = ANCHOR - S.hours * 3600e3;
+  return pts.filter(p => Date.parse(p[0]) >= from);
+}
+function latest(st) {
+  const pts = windowPoints(st.k);
+  if (st.kind === "rain_forecast") return pts.find(p => Date.parse(p[0]) >= ANCHOR) || pts[pts.length - 1];
+  return pts[pts.length - 1];
+}
+function visibleStations(kind) {
+  return DATA.stations.filter(st => (!kind || st.kind === kind) && (!S.province || st.prov === S.province) && latest(st));
+}
+function rows(kind) {
+  return visibleStations(kind).map(st => {
+    const p = latest(st);
+    return { st, t: p[0], value: p[1], raw: p[2], status: statusOf(st, p[1], p[2]) };
+  });
+}
+
+// ---------- KPI ----------
+function renderKpis() {
+  const wl = rows("waterlevel");
+  const crit = wl.filter(r => r.status === "critical").length, ser = wl.filter(r => r.status === "serious").length;
+  const rain = rows("rain_24h").sort((a, b) => (b.value ?? -1) - (a.value ?? -1));
+  const heavy = rain.filter(r => r.value > 35).length;
+  const flood = rows("flood_area");
+  const rai = flood.reduce((s, r) => s + (r.value || 0), 0);
+  const floodProv = new Set(flood.map(r => r.st.prov).filter(Boolean)).size;
+  const street = rows("street_flood").filter(r => r.value > 0).sort((a, b) => b.value - a.value);
+  const rep = DATA.reports.filter(r => r.source === "disaster" && Object.keys(r.metrics || {}).length && (!S.province || r.provinces.includes(S.province)))
+    .sort((a, b) => (b.published_at || "").localeCompare(a.published_at || ""))[0];
+
+  const tiles = [
+    { label: "สถานีระดับน้ำวิกฤต", value: num(crit, 0), small: `/ ${num(wl.length, 0)} สถานี`, meta: `${STATUS.critical.icon} ล้นตลิ่ง ${crit} · ${STATUS.serious.icon} น้ำมาก ${ser}` },
+    { label: "ฝนสูงสุด 24 ชม.", value: rain[0] ? num(rain[0].value, 1) : "–", small: "มม.", meta: rain[0] ? `${rain[0].st.name || rain[0].st.id} ${rain[0].st.prov ? "· " + rain[0].st.prov : ""} · ฝนหนัก ${heavy} สถานี` : "ไม่มีข้อมูล" },
+    { label: "พื้นที่น้ำท่วม (ดาวเทียม)", value: flood.length ? num(rai, 0) : "–", small: "ไร่", meta: flood.length ? `${floodProv} จังหวัด · ${flood.length} ตำบล` : "ไม่พบพื้นที่ท่วมในตัวกรองนี้" },
+    { label: "จุดน้ำท่วมขัง กทม.", value: num(street.length, 0), small: "จุด", meta: street[0] ? `ลึกสุด ${num(street[0].value, 0)} ซม. · ${street[0].st.name}` : "ไม่มีจุดท่วมขัง" },
+    { label: "ผลกระทบ (ปภ. ล่าสุด)", value: rep?.metrics?.households != null ? num(rep.metrics.households, 0) : "–", small: "ครัวเรือน",
+      meta: rep ? `${rep.metrics.provinces ?? "?"} จังหวัด · เสียชีวิต ${rep.metrics.deaths ?? 0} ราย · ${fmtDay(rep.published_at)}` : "ไม่มีรายงาน" },
+  ];
+  $("#kpis").innerHTML = tiles.map(t => `<div class="card kpi"><div class="label">${t.label}</div>
+    <div class="value">${t.value}<small>${t.small}</small></div><div class="meta" title="${esc(t.meta)}">${esc(t.meta)}</div></div>`).join("");
+}
+
+// ---------- แผนที่ ----------
+let map, tileLayer, groups = {}, markerByKey = {};
+const LAYER_DEFS = [
+  ["waterlevel", "ระดับน้ำ"], ["rain_24h", "ฝน 24 ชม."], ["dam_storage", "เขื่อน"],
+  ["flood_area", "พื้นที่ท่วม"], ["street_flood", "ท่วมขัง กทม."],
+];
+function tileUrl() {
+  const dark = document.documentElement.dataset.theme === "dark" ||
+    (document.documentElement.dataset.theme !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
+  return `https://{s}.basemaps.cartocdn.com/${dark ? "dark_all" : "light_all"}/{z}/{x}/{y}{r}.png`;
+}
+function initMap() {
+  if (!window.L) {
+    $("#map").innerHTML = '<div class="map-fallback">โหลดแผนที่ไม่ได้ (ต้องต่ออินเทอร์เน็ต) — ตาราง กราฟ และรายงานด้านล่างยังใช้งานได้</div>';
+    return;
+  }
+  map = L.map("map", { preferCanvas: true, zoomControl: true }).setView([13.2, 101.0], 6);
+  tileLayer = L.tileLayer(tileUrl(), {
+    maxZoom: 18, subdomains: "abcd",
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a> · ข้อมูล: สสน., GISTDA, ปภ., สทนช., กทม., กรมอุตุฯ',
+  }).addTo(map);
+  for (const [k] of LAYER_DEFS) groups[k] = L.layerGroup();
+  groups.flood_poly = L.layerGroup();
+}
+function markerStyle(st, value, status) {
+  if (st.kind === "rain_24h") {
+    const step = RAIN_STEPS.find(s => (value ?? 0) >= s.min);
+    if (!step) return null; // ไม่มีฝน — ไม่ต้องปักหมุด
+    return { radius: step.r, color: css("--surface-1"), weight: 1, fillColor: css(step.v), fillOpacity: .9 };
+  }
+  if (st.kind === "flood_area") {
+    const r = Math.max(4, Math.min(16, Math.sqrt((value || 0) / 50)));
+    return { radius: r, color: css("--surface-1"), weight: 1, fillColor: css("--flood"), fillOpacity: .75 };
+  }
+  const s = STATUS[status || "neutral"];
+  const big = status === "critical" ? 7 : status === "serious" ? 6 : 4.5;
+  return { radius: st.kind === "dam_storage" ? big + 2 : big, color: css("--surface-1"), weight: st.kind === "dam_storage" ? 2 : 1, fillColor: css(s.color), fillOpacity: .95 };
+}
+function renderMap() {
+  if (!map) return;
+  markerByKey = {};
+  for (const g of Object.values(groups)) g.clearLayers();
+  const bounds = [];
+  // ลำดับวาด: พื้นที่ท่วม → ฝน → เขื่อน → ระดับน้ำ → ท่วมขัง (สถานะวิกฤตอยู่บนสุด)
+  const order = ["flood_area", "rain_24h", "dam_storage", "waterlevel", "street_flood"];
+  const rank = { neutral: 0, good: 1, warning: 2, serious: 3, critical: 4 };
+  for (const kind of order) {
+    const list = rows(kind).filter(r => r.st.lat != null && r.st.lon != null)
+      .sort((a, b) => (rank[a.status] ?? 0) - (rank[b.status] ?? 0) || (a.value ?? 0) - (b.value ?? 0));
+    for (const r of list) {
+      const style = markerStyle(r.st, r.value, r.status);
+      if (!style) continue;
+      const m = L.circleMarker([r.st.lat, r.st.lon], style)
+        .bindTooltip(`<b>${esc(r.st.name || r.st.id)}</b><br>${esc(KINDS[kind].label)}: ${num(r.value, KINDS[kind].fmt)} ${KINDS[kind].unit}${r.status ? "<br>" + badge(r.status) : ""}<br><span style="color:var(--text-muted)">${fmtTime(r.t)}</span>`, { direction: "top" })
+        .on("click", () => select(r.st.k, true));
+      m.addTo(groups[kind]);
+      markerByKey[r.st.k] = m;
+      if (S.layers.has(kind)) bounds.push([r.st.lat, r.st.lon]);
+    }
+  }
+  if (DATA.flood_geojson && S.layers.has("flood_area")) {
+    L.geoJSON(DATA.flood_geojson, {
+      filter: f => !S.province || (f.properties || {}).pv_tn === S.province,
+      style: { color: css("--flood"), weight: 1, fillColor: css("--flood"), fillOpacity: .35 },
+    }).addTo(groups.flood_poly);
+  }
+  for (const [k, g] of Object.entries(groups)) {
+    const on = k === "flood_poly" ? S.layers.has("flood_area") : S.layers.has(k);
+    on ? g.addTo(map) : g.remove();
+  }
+  if (S.fit && bounds.length) { map.fitBounds(bounds, { padding: [30, 30], maxZoom: S.province ? 11 : 7 }); S.fit = false; }
+}
+function renderLegend() {
+  const parts = [];
+  if (S.layers.has("waterlevel") || S.layers.has("dam_storage") || S.layers.has("street_flood")) {
+    parts.push(`<div class="row"><b>สถานะ</b>${["critical", "serious", "warning", "good", "neutral"].map(k =>
+      `<span><span class="sw" style="background:${STATUS[k].color}"></span>${STATUS[k].icon} ${STATUS[k].label}</span>`).join("")}</div>`);
+  }
+  if (S.layers.has("rain_24h")) {
+    parts.push(`<div class="row"><b>ฝน</b>${[...RAIN_STEPS].reverse().map(s =>
+      `<span><span class="sw" style="background:var(${s.v})"></span>${s.label}</span>`).join("")}</div>`);
+  }
+  if (S.layers.has("flood_area")) parts.push(`<div class="row"><b>ดาวเทียม</b><span><span class="sw" style="background:var(--flood)"></span>พื้นที่น้ำท่วม (ขนาด = ไร่)</span></div>`);
+  $("#legend").innerHTML = parts.join("");
+  $("#legend").hidden = !parts.length;
+}
+
+// ---------- กราฟ (SVG ไม่พึ่งไลบรารี) ----------
+function niceTicks(min, max, n = 4) {
+  if (min === max) { min -= 1; max += 1; }
+  const step0 = (max - min) / n, mag = Math.pow(10, Math.floor(Math.log10(step0)));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => s >= step0);
+  const lo = Math.floor(min / step) * step, hi = Math.ceil(max / step) * step;
+  const out = [];
+  for (let v = lo; v <= hi + step / 2; v += step) out.push(+v.toFixed(10));
+  return out;
+}
+function drawChart(el, pts, { unit, fmt = 1, bars = false, refs = [], color = "var(--series-1)", height = 220, zeroBase = false } = {}) {
+  const data = pts.filter(p => p[1] != null).map(p => ({ t: Date.parse(p[0]), v: p[1], s: p[2] }));
+  if (data.length === 0) { el.innerHTML = '<div class="empty">ไม่มีข้อมูลในช่วงเวลานี้</div>'; return; }
+  const W = Math.max(280, el.clientWidth || 400), H = height, m = { l: 44, r: 12, t: 12, b: 26 };
+  const t0 = data[0].t, t1 = data[data.length - 1].t === t0 ? t0 + 3600e3 : data[data.length - 1].t;
+  let vmin = Math.min(...data.map(d => d.v), ...refs.map(r => r.v)), vmax = Math.max(...data.map(d => d.v), ...refs.map(r => r.v));
+  if (bars || zeroBase) vmin = Math.min(0, vmin);
+  const ticks = niceTicks(vmin, vmax);
+  const y0 = ticks[0], y1 = ticks[ticks.length - 1];
+  const bw = bars ? Math.max(2, Math.min(14, (W - m.l - m.r) / data.length - 2)) : 0;
+  const x = t => m.l + bw / 2 + (t - t0) / (t1 - t0) * (W - m.l - m.r - bw);
+  const y = v => m.t + (1 - (v - y0) / (y1 - y0)) * (H - m.t - m.b);
+  const spanDays = (t1 - t0) / 864e5;
+  const nx = Math.max(2, Math.floor((W - m.l - m.r) / 70));
+  let xt = [];
+  if (spanDays > 1.5) { // ขีดที่เที่ยงคืนเวลาไทย เว้นระยะไม่ให้ป้ายชนกัน
+    const DAY = 864e5, TZ = 7 * 3600e3;
+    const every = Math.ceil(spanDays / nx);
+    for (let t = Math.ceil((t0 + TZ) / DAY) * DAY - TZ, i = 0; t <= t1; t += DAY, i++) if (i % every === 0) xt.push(t);
+  } else {
+    for (let i = 0; i <= nx; i++) xt.push(t0 + (t1 - t0) * i / nx);
+  }
+  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="กราฟ ${esc(unit)}">`;
+  svg += `<g class="axis">${ticks.map(v => `<line class="gridline" x1="${m.l}" x2="${W - m.r}" y1="${y(v)}" y2="${y(v)}"/><text x="${m.l - 6}" y="${y(v) + 4}" text-anchor="end">${num(v, Math.abs(y1 - y0) < 5 ? 1 : 0)}</text>`).join("")}`;
+  svg += xt.map((t, i) => `<text x="${x(t)}" y="${H - 6}" text-anchor="${x(t) - m.l < 24 ? "start" : W - m.r - x(t) < 24 ? "end" : "middle"}">${spanDays > 1.5 ? fmtDay(t) : fmtHour(t)}</text>`).join("") + "</g>";
+  for (const r of refs) svg += `<line class="ref" x1="${m.l}" x2="${W - m.r}" y1="${y(r.v)}" y2="${y(r.v)}"/><text class="ref-label" x="${W - m.r}" y="${y(r.v) - 4}" text-anchor="end">${esc(r.label)} ${num(r.v, fmt)}</text>`;
+  if (bars) {
+    svg += data.map(d => { const top = y(Math.max(0, d.v)), h = Math.max(0, y(0) - top);
+      return `<path d="M${x(d.t) - bw / 2},${top + h} v${-Math.max(0, h - 2)} q0,-2 2,-2 h${bw - 4} q2,0 2,2 v${Math.max(0, h - 2)} z" fill="${color}"/>`; }).join("");
+  } else {
+    svg += `<path d="${data.map((d, i) => `${i ? "L" : "M"}${x(d.t).toFixed(1)},${y(d.v).toFixed(1)}`).join("")}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+    const last = data[data.length - 1];
+    svg += `<circle cx="${x(last.t)}" cy="${y(last.v)}" r="4" fill="${color}" stroke="var(--surface-1)" stroke-width="2"/>`;
+  }
+  svg += `<g class="hover" style="display:none"><line y1="${m.t}" y2="${H - m.b}" stroke="var(--text-muted)" stroke-width="1"/><circle r="4" fill="${color}" stroke="var(--surface-1)" stroke-width="2"/></g>`;
+  svg += `<rect x="${m.l}" y="0" width="${W - m.l - m.r}" height="${H}" fill="transparent"/></svg><div class="tip"></div>`;
+  el.innerHTML = svg;
+  const svgEl = el.querySelector("svg"), hover = svgEl.querySelector(".hover"), tip = el.querySelector(".tip");
+  const move = ev => {
+    const rect = svgEl.getBoundingClientRect();
+    const px = (ev.clientX - rect.left) * W / rect.width;
+    let best = data[0];
+    for (const d of data) if (Math.abs(x(d.t) - px) < Math.abs(x(best.t) - px)) best = d;
+    hover.style.display = "";
+    hover.querySelector("line").setAttribute("x1", x(best.t)); hover.querySelector("line").setAttribute("x2", x(best.t));
+    hover.querySelector("circle").setAttribute("cx", x(best.t)); hover.querySelector("circle").setAttribute("cy", y(best.v));
+    tip.innerHTML = `<div class="t">${fmtTime(best.t)}</div><div class="v">${num(best.v, fmt)} ${esc(unit)}</div>${best.s ? `<div class="t">${esc(best.s)}</div>` : ""}`;
+    tip.style.display = "block";
+    const left = x(best.t) / W * rect.width;
+    tip.style.left = Math.min(Math.max(0, left - tip.offsetWidth / 2), rect.width - tip.offsetWidth) + "px";
+    tip.style.top = Math.max(0, y(best.v) / H * rect.height - tip.offsetHeight - 10) + "px";
+  };
+  svgEl.addEventListener("pointermove", move);
+  svgEl.addEventListener("pointerleave", () => { hover.style.display = "none"; tip.style.display = "none"; });
+}
+
+// ---------- แผงรายละเอียด ----------
+function select(key, fromMap) {
+  S.selected = key;
+  renderDetail();
+  document.querySelectorAll("tbody tr.sel").forEach(tr => tr.classList.remove("sel"));
+  const tr = document.querySelector(`tbody tr[data-k="${CSS.escape(key)}"]`);
+  if (tr) { tr.classList.add("sel"); if (fromMap) tr.scrollIntoView({ block: "nearest" }); }
+  const m = markerByKey[key];
+  if (m && !fromMap && map) { map.setView(m.getLatLng(), Math.max(map.getZoom(), 9)); m.openTooltip(); }
+  if (innerWidth <= 860 && !fromMap) $("#detail").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+function defaultSelection() {
+  const r = rows("waterlevel").filter(r => r.status === "critical")[0] || rows("rain_24h").sort((a, b) => (b.value ?? 0) - (a.value ?? 0))[0] || rows()[0];
+  return r?.st.k || null;
+}
+function renderDetail() {
+  const el = $("#detail");
+  const st = BY_KEY[S.selected];
+  if (!st || !latest(st)) {
+    el.innerHTML = '<h2>รายละเอียดสถานี</h2><div class="empty">คลิกจุดบนแผนที่หรือแถวในตาราง<br>เพื่อดูกราฟย้อนหลัง</div>';
+    return;
+  }
+  const K = KINDS[st.kind] || { label: st.kind, unit: st.unit, fmt: 1 };
+  const pts = windowPoints(st.k), p = latest(st), status = statusOf(st, p[1], p[2]);
+  const vals = pts.map(q => q[1]).filter(v => v != null);
+  const ex = st.extra || {};
+  const facts = [[`ล่าสุด (${K.unit})`, num(p[1], K.fmt)]];
+  if (vals.length > 1) facts.push(["สูงสุดช่วงนี้", num(Math.max(...vals), K.fmt)], ["ต่ำสุดช่วงนี้", num(Math.min(...vals), K.fmt)]);
+  if (st.kind === "waterlevel" && ex.min_bank != null) {
+    const gap = ex.min_bank - p[1];
+    facts.push(gap >= 0 ? ["ต่ำกว่าตลิ่ง (ม.)", num(gap, 2)] : ["ล้นตลิ่ง (ม.)", "+" + num(-gap, 2)]);
+  }
+  if (st.kind === "dam_storage" && ex.storage_mcm != null) facts.push(["ปริมาตร (ล้าน ลบ.ม.)", num(ex.storage_mcm, 0)]);
+  if (st.kind === "dam_storage" && ex.inflow_mcm != null) facts.push(["ไหลเข้า/ระบาย", `${num(ex.inflow_mcm, 1)} / ${num(ex.released_mcm, 1)}`]);
+  el.innerHTML = `<h2>${esc(st.name || st.id)}</h2>
+    <div class="where">${esc(K.label)} · ${esc([st.amp, st.prov].filter(Boolean).join(", ") || "ไม่ระบุพื้นที่")} ${status ? " " + badge(status) : ""}</div>
+    <div class="now">${facts.map(([k, v]) => `<div>${k}<strong>${v}</strong></div>`).join("")}</div>
+    <div class="where" style="margin-bottom:6px">${K.label} (${K.unit}) · อัปเดต ${fmtTime(p[0])}</div>
+    <div class="chart" id="detailChart"></div>`;
+  const refs = [];
+  if (st.kind === "waterlevel" && ex.min_bank != null) refs.push({ v: ex.min_bank, label: "ตลิ่ง" });
+  if (st.kind === "dam_storage") refs.push({ v: 100, label: "ความจุ" });
+  drawChart($("#detailChart"), pts, { unit: K.unit, fmt: K.fmt, refs, bars: st.kind.startsWith("rain"), zeroBase: st.kind !== "waterlevel", height: 240 });
+}
+
+// ---------- ตาราง / แท็บ ----------
+function renderTab() {
+  document.querySelectorAll("#tabs button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === S.tab)));
+  if (S.tab === "reports") return renderReports();
+  if (S.tab === "forecast") return renderForecast();
+  const K = KINDS[S.tab];
+  let list = rows(S.tab);
+  const q = S.q.trim();
+  if (q) list = list.filter(r => [r.st.name, r.st.prov, r.st.amp, r.st.id].some(v => String(v ?? "").includes(q)));
+  const { key, dir } = S.sort;
+  const val = r => key === "value" ? (r.value ?? -Infinity) : key === "t" ? r.t : String((key === "name" ? r.st.name : key === "prov" ? r.st.prov : r.raw) ?? "");
+  list.sort((a, b) => { const A = val(a), B = val(b); return (A > B ? 1 : A < B ? -1 : 0) * dir; });
+  const shown = list.slice(0, 300);
+  const arrow = k => S.sort.key === k ? (S.sort.dir > 0 ? " ↑" : " ↓") : "";
+  const hasStatus = ["waterlevel", "dam_storage", "street_flood"].includes(S.tab);
+  $("#tabbody").innerHTML = `<div class="toolbar"><input id="q" type="search" placeholder="ค้นหาชื่อสถานี / จังหวัด / อำเภอ" value="${esc(S.q)}" style="flex:1;min-width:200px">
+      <span class="count">${num(list.length, 0)} รายการ${list.length > shown.length ? ` (แสดง ${shown.length})` : ""}</span></div>
+    ${list.length ? `<div class="tablewrap"><table><thead><tr>
+      <th data-sort="name">ชื่อ${arrow("name")}</th><th data-sort="prov">จังหวัด${arrow("prov")}</th>
+      <th class="num" data-sort="value">${K.label} (${K.unit})${arrow("value")}</th>
+      ${hasStatus ? `<th data-sort="raw">สถานะ${arrow("raw")}</th>` : ""}<th data-sort="t">เวลา${arrow("t")}</th></tr></thead><tbody>
+      ${shown.map(r => `<tr data-k="${esc(r.st.k)}" class="${r.st.k === S.selected ? "sel" : ""}"><td>${esc(r.st.name || r.st.id)}</td><td>${esc(r.st.prov || "–")}${r.st.amp ? `<span style="color:var(--text-muted)"> · ${esc(r.st.amp)}</span>` : ""}</td>
+        <td class="num">${num(r.value, K.fmt)}</td>${hasStatus ? `<td>${badge(r.status)}</td>` : ""}<td style="color:var(--text-secondary);white-space:nowrap">${fmtTime(r.t)}</td></tr>`).join("")}
+      </tbody></table></div>` : '<div class="empty">ไม่มีข้อมูลสำหรับตัวกรองนี้</div>'}`;
+  const qEl = $("#q");
+  qEl.addEventListener("input", () => { S.q = qEl.value; renderTab(); const n = $("#q"); n.focus(); n.setSelectionRange(n.value.length, n.value.length); });
+  document.querySelectorAll("th[data-sort]").forEach(th => th.addEventListener("click", () => {
+    const k = th.dataset.sort;
+    S.sort = { key: k, dir: S.sort.key === k ? -S.sort.dir : (k === "value" || k === "t" ? -1 : 1) };
+    renderTab();
+  }));
+  document.querySelectorAll("tbody tr").forEach(tr => tr.addEventListener("click", () => select(tr.dataset.k)));
+}
+const METRIC_LABEL = { provinces: "จังหวัด", districts: "อำเภอ", subdistricts: "ตำบล", villages: "หมู่บ้าน", households: "ครัวเรือน", people: "คน", deaths: "เสียชีวิต", injured: "บาดเจ็บ", missing: "สูญหาย" };
+const SRC_LABEL = { disaster: "ปภ.", onwr: "สทนช.", tmd: "กรมอุตุฯ" };
+function renderReports() {
+  const list = DATA.reports.filter(r => !S.province || r.provinces.includes(S.province))
+    .sort((a, b) => (b.published_at || "").localeCompare(a.published_at || ""));
+  $("#tabbody").innerHTML = list.length ? `<div class="reports">${list.map(r => `<div class="report">
+      <a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.title)}</a>
+      <div class="m">${esc(SRC_LABEL[r.source] || r.source)} · ${fmtTime(r.published_at)}${r.provinces.length ? " · " + esc(r.provinces.slice(0, 12).join(", ")) + (r.provinces.length > 12 ? ` และอีก ${r.provinces.length - 12}` : "") : ""}</div>
+      ${Object.keys(r.metrics || {}).length ? `<div class="stats">${Object.entries(r.metrics).map(([k, v]) => `<span class="badge">${esc(METRIC_LABEL[k] || k)} <b>${num(v, 0)}</b></span>`).join("")}</div>` : ""}
+    </div>`).join("")}</div>` : '<div class="empty">ไม่มีรายงานหรือประกาศ</div>';
+}
+function renderForecast() {
+  const list = DATA.stations.filter(s => s.kind === "rain_forecast" && (!S.province || s.prov === S.province));
+  if (!list.length) { $("#tabbody").innerHTML = '<div class="empty">ไม่มีข้อมูลพยากรณ์ (ต้องตั้ง TMD_API_TOKEN)</div>'; return; }
+  $("#tabbody").innerHTML = `<div class="fc-grid">${list.map((s, i) => {
+    const pts = DATA.series[s.k] || [], total = pts.reduce((a, p) => a + (p[1] || 0), 0);
+    return `<div class="fc"><h3>${esc(s.name || s.id)}</h3><div class="m">ฝนสะสมตามพยากรณ์ ${num(total, 1)} มม. · ${pts.length} ชม.</div><div class="chart" id="fc${i}"></div></div>`;
+  }).join("")}</div>`;
+  list.forEach((s, i) => drawChart($("#fc" + i), DATA.series[s.k] || [], { unit: "มม./ชม.", fmt: 1, bars: true, height: 150 }));
+}
+
+// ---------- ตัวกรอง ----------
+function renderFilters() {
+  const provs = [...new Set(DATA.stations.map(s => s.prov).filter(Boolean))].sort((a, b) => a.localeCompare(b, "th"));
+  $("#province").innerHTML = '<option value="">ทุกจังหวัด</option>' + provs.map(p => `<option ${p === S.province ? "selected" : ""}>${esc(p)}</option>`).join("");
+  document.querySelectorAll("#range button").forEach(b => b.setAttribute("aria-pressed", String(Number(b.dataset.h) === S.hours)));
+  $("#layers").innerHTML = LAYER_DEFS.map(([k, label]) =>
+    `<label class="chip"><input type="checkbox" data-layer="${k}" ${S.layers.has(k) ? "checked" : ""}>${label}</label>`).join("");
+  document.querySelectorAll("[data-layer]").forEach(cb => cb.addEventListener("change", () => {
+    cb.checked ? S.layers.add(cb.dataset.layer) : S.layers.delete(cb.dataset.layer);
+    store.set("tf.layers", JSON.stringify([...S.layers]));
+    renderMap(); renderLegend();
+  }));
+}
+function renderAll() {
+  if (S.selected && !(BY_KEY[S.selected] && latest(BY_KEY[S.selected]) && (!S.province || BY_KEY[S.selected].prov === S.province))) S.selected = null;
+  if (!S.selected) S.selected = defaultSelection();
+  renderKpis(); renderMap(); renderLegend(); renderDetail(); renderTab();
+}
+
+// ---------- ธีม ----------
+const THEMES = ["auto", "light", "dark"], THEME_LABEL = { auto: "อัตโนมัติ", light: "สว่าง", dark: "มืด" };
+function applyTheme(t) {
+  if (t === "auto") delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = t;
+  $("#theme").textContent = "ธีม: " + THEME_LABEL[t];
+  store.set("tf.theme", t);
+  if (tileLayer) tileLayer.setUrl(tileUrl());
+}
+
+// ---------- เริ่ม ----------
+(function boot() {
+  if (!DATA) { document.body.innerHTML = '<p style="padding:24px">ไม่มีข้อมูล — สร้างไฟล์ด้วยคำสั่ง <code>thaiflood dashboard</code></p>'; return; }
+  let theme = store.get("tf.theme") || "auto";
+  applyTheme(THEMES.includes(theme) ? theme : "auto");
+  $("#theme").addEventListener("click", () => {
+    theme = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length];
+    applyTheme(theme); renderAll();
+  });
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { if (theme === "auto") { applyTheme("auto"); renderAll(); } });
+  $("#sub").textContent = `ข้อมูลล่าสุด ${fmtTime(ANCHOR)} · สร้างไฟล์ ${fmtTime(DATA.generated_at)} · ${num(DATA.stations.length, 0)} จุดตรวจวัด`;
+  if (DATA.note) { $("#note").textContent = DATA.note; $("#note").hidden = false; }
+  S.province = DATA.province || "";
+  initMap();
+  renderFilters();
+  $("#province").addEventListener("change", e => { S.province = e.target.value; S.selected = null; S.fit = true; renderAll(); });
+  document.querySelectorAll("#range button").forEach(b => b.addEventListener("click", () => {
+    S.hours = Number(b.dataset.h); store.set("tf.hours", S.hours);
+    document.querySelectorAll("#range button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+    renderAll();
+  }));
+  document.querySelectorAll("#tabs button").forEach(b => b.addEventListener("click", () => { S.tab = b.dataset.tab; S.q = ""; renderTab(); }));
+  let rz; addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { renderDetail(); if (S.tab === "forecast") renderForecast(); }, 150); });
+  renderAll();
+})();
+</script>
+</body>
+</html>

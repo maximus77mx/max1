@@ -18,5 +18,8 @@ thaiflood = "thaiflood.cli:main"
 [tool.setuptools.packages.find]
 include = ["thaiflood*"]
 
+[tool.setuptools.package-data]
+thaiflood = ["dashboard_template.html"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
