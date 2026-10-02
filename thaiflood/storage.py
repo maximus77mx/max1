@@ -172,12 +172,15 @@ class Store:
             args.append(limit)
         return [dict(r) for r in self.conn.execute(sql, args)]
 
-    def query_reports(self, source: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
-        sql = "SELECT * FROM reports"
+    def query_reports(
+        self, source: str | None = None, limit: int = 50, kind: str | None = None, exclude_kind: str | None = None
+    ) -> list[dict[str, Any]]:
+        sql = "SELECT * FROM reports WHERE 1=1"
         args: list[Any] = []
-        if source:
-            sql += " WHERE source = ?"
-            args.append(source)
+        for cond, val in (("source = ?", source), ("kind = ?", kind), ("kind != ?", exclude_kind)):
+            if val:
+                sql += f" AND {cond}"
+                args.append(val)
         sql += " ORDER BY COALESCE(published_at, collected_at) DESC LIMIT ?"
         args.append(limit)
         return [dict(r) for r in self.conn.execute(sql, args)]
@@ -187,6 +190,9 @@ class Store:
         cutoff = now_th() - timedelta(days=keep_days)
         n_rows = self.conn.execute("DELETE FROM observations WHERE observed_at < ?", (cutoff.isoformat(),)).rowcount
         self.conn.execute("DELETE FROM runs WHERE started_at < ?", (cutoff.isoformat(),))
+        # ภาพเรดาร์เปลี่ยนทุกไม่กี่นาที เก็บไว้แค่ 2 วัน
+        radar_cutoff = (now_th() - timedelta(days=min(2, keep_days))).isoformat()
+        self.conn.execute("DELETE FROM reports WHERE kind = 'radar_image' AND collected_at < ?", (radar_cutoff,))
         self.conn.commit()
         self.conn.execute("VACUUM")
         n_dirs = 0

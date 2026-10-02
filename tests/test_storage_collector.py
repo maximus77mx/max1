@@ -29,6 +29,7 @@ class FakeSession:
         "waterlevel_load": "thaiwater_waterlevel.json",
         "rain_24h": "thaiwater_rain.json",
         "dam_daily": "thaiwater_dam.json",
+        "thailand_main": "thaiwater_main.json",
     }
 
     def get(self, url, **kwargs):
@@ -67,6 +68,10 @@ def test_thaiwater_collect_with_fake_session():
     kinds = {o.kind for o in result.observations}
     assert kinds == {"waterlevel", "rain_24h", "dam_storage"}
     assert set(result.raw) == {"waterlevel.json", "rain_24h.json", "dam.json"}
+    radar = {r.title: r for r in result.reports}
+    assert radar["เรดาร์ สทิงพระ"].url == "https://api-v3.thaiwater.net/product/radar/stp/stp240_latest.gif"
+    assert radar["เรดาร์ สทิงพระ"].published_at.startswith("2026-10-02T15:10")
+    assert radar["เรดาร์ เชียงราย"].url == "https://example.org/cri.png"
 
 
 def test_collect_isolates_failures(tmp_path, monkeypatch):
@@ -127,7 +132,7 @@ def test_prune_removes_old_rows(tmp_path):
 def test_thaiwater_dam_falls_back_to_next_path():
     class Session(FakeSession):
         routes = {"waterlevel_load": "thaiwater_waterlevel.json", "rain_24h": "thaiwater_rain.json",
-                  "thailand_main": "thaiwater_dam.json"}
+                  "thailand_main": "thaiwater_main.json"}
 
     settings = Settings()
     settings.thaiwater_dam_path = "/public/dam_daily,/public/thailand_main"

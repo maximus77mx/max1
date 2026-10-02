@@ -6,11 +6,16 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
-from ..models import CollectResult, Observation
+from urllib.parse import urljoin
+
+from ..models import CollectResult, Observation, Report
 from ..utils import dig, th, to_float, to_iso
 from .base import Source
+
+log = logging.getLogger("thaiflood")
 
 # ระดับสถานการณ์ของ สสน. (situation_level)
 SITUATION = {
@@ -158,6 +163,62 @@ def parse_dam(payload: Any) -> list[Observation]:
     return out
 
 
+_IMG_EXT = (".png", ".gif", ".jpg", ".jpeg", ".webp")
+
+
+def _is_image(value: Any) -> bool:
+    return isinstance(value, str) and value.split("?")[0].lower().endswith(_IMG_EXT)
+
+
+def parse_radar(payload: Any, media_base: str) -> list[Report]:
+    """หาภาพเรดาร์ในส่วน "radar" ของ thailand_main — ไม่ผูกกับชื่อฟิลด์ตายตัว:
+    เดินทุก dict ที่มีค่าเป็นลิงก์ภาพ แล้วใช้ฟิลด์ชื่อ/เวลาที่อยู่ข้างกัน"""
+    root = payload.get("radar", payload) if isinstance(payload, dict) else payload
+    out: list[Report] = []
+    seen: set[str] = set()
+
+    def label_of(d: dict[str, Any]) -> str | None:
+        for k, v in d.items():
+            if any(w in k.lower() for w in ("name", "title", "station", "radar_type", "agency")) and not _is_image(v):
+                text = th(v)
+                if isinstance(text, str) and text.strip():
+                    return text.strip()
+        return None
+
+    def time_of(d: dict[str, Any]) -> str | None:
+        for k, v in d.items():
+            if any(w in k.lower() for w in ("datetime", "date", "time")) and isinstance(v, (str, int, float)) and not _is_image(v):
+                return to_iso(v)
+        return None
+
+    def walk(node: Any, parent_label: str | None) -> None:
+        if isinstance(node, dict):
+            label = label_of(node) or parent_label
+            for k, v in node.items():
+                if _is_image(v):
+                    url = urljoin(media_base, v)
+                    if url not in seen:
+                        seen.add(url)
+                        title = label or k
+                        out.append(Report(source="thaiwater", kind="radar_image", title=f"เรดาร์ {title}",
+                                          url=url, published_at=time_of(node)))
+                else:
+                    walk(v, label)
+        elif isinstance(node, list):
+            for item in node:
+                if _is_image(item):
+                    url = urljoin(media_base, item)
+                    if url not in seen:
+                        seen.add(url)
+                        out.append(Report(source="thaiwater", kind="radar_image",
+                                          title=f"เรดาร์ {parent_label or len(out) + 1}", url=url))
+                else:
+                    walk(item, parent_label)
+
+    walk(root, None)
+    return out
+
+
 class ThaiWaterSource(Source):
     name = "thaiwater"
     description = "สสน. ThaiWater — ฝน 24 ชม., ระดับน้ำแม่น้ำ, น้ำในเขื่อน (รายชั่วโมง/รายวัน)"
@@ -172,11 +233,13 @@ class ThaiWaterSource(Source):
             ("rain_24h", self.settings.thaiwater_rain_path, parse_rain),
             ("dam", self.settings.thaiwater_dam_path, parse_dam),
         )
+        cache: dict[str, Any] = {}
         for label, paths, parser in jobs:
             tried = []
             for path in [p.strip() for p in paths.split(",") if p.strip()]:
                 try:
-                    payload = self.get_json(self._url(path))
+                    payload = cache[path] if path in cache else self.get_json(self._url(path))
+                    cache[path] = payload
                 except Exception as exc:  # แหล่งย่อยหนึ่งพังไม่ควรทำให้ทั้งรอบพัง
                     tried.append(f"{path}: {exc}")
                     continue
@@ -197,6 +260,21 @@ class ThaiWaterSource(Source):
                 break
             if tried:
                 result.errors.append(f"{label}: " + " | ".join(tried))
+
+        # ภาพเรดาร์ฝน (กรมอุตุฯ/กรมฝนหลวง) ที่ ThaiWater รวบรวมไว้ใน thailand_main
+        path = self.settings.thaiwater_main_path
+        try:
+            main = cache[path] if path in cache else self.get_json(self._url(path))
+            radar = main.get("radar") if isinstance(main, dict) else None
+            log.info("thaiwater radar: %s", _describe(radar))
+            reports = parse_radar(main, self.settings.thaiwater_media_base)
+            if reports:
+                result.reports.extend(reports)
+                log.info("thaiwater radar: %d ภาพ เช่น %s", len(reports), [(r.title, r.url, r.published_at) for r in reports[:3]])
+            else:
+                result.errors.append(f"radar: ไม่พบลิงก์ภาพ — โครงสร้าง={_describe(radar)}")
+        except Exception as exc:
+            result.errors.append(f"radar: {exc}")
         return result
 
     def waterlevel_history(self, station_id: str, start: str, end: str) -> list[Observation]:

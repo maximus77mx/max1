@@ -36,6 +36,9 @@ class Settings:
     thaiwater_waterlevel_path: str = _env("THAIWATER_WATERLEVEL_PATH", "/public/waterlevel_load")
     thaiwater_rain_path: str = _env("THAIWATER_RAIN_PATH", "/public/rain_24h")
     # ลองตามลำดับจนเจอ path ที่ตอบกลับ (คั่นด้วย ,) — thailand_main มีข้อมูลเขื่อนอยู่ใน dam_data
+    thaiwater_main_path: str = _env("THAIWATER_MAIN_PATH", "/public/thailand_main")
+    # ฐานของลิงก์ภาพที่เป็น path สัมพัทธ์ (ภาพเรดาร์ ฯลฯ)
+    thaiwater_media_base: str = _env("THAIWATER_MEDIA_BASE", "https://api-v3.thaiwater.net/")
     thaiwater_dam_path: str = _env("THAIWATER_DAM_PATH", "/public/dam_daily,/public/dam_load,/public/thailand_main")
     # กราฟย้อนหลังรายสถานี (historical) — {station_id}, {start}, {end} จะถูกแทนค่า
     thaiwater_waterlevel_graph_path: str = _env(

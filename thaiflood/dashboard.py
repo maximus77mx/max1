@@ -36,6 +36,17 @@ def _latest_geojson(raw_dir: Path | None) -> dict[str, Any] | None:
         return None
 
 
+def _latest_radar(store: Store) -> list[dict[str, Any]]:
+    """ภาพเรดาร์ล่าสุดของแต่ละสถานี (ชื่อเดียวกัน = สถานีเดียวกัน)"""
+    latest: dict[str, dict[str, Any]] = {}
+    for r in store.query_reports(kind="radar_image", limit=500):
+        key = r["title"]
+        when = r["published_at"] or r["collected_at"]
+        if key not in latest or when > latest[key]["t"]:
+            latest[key] = {"title": r["title"], "url": r["url"], "t": when}
+    return sorted(latest.values(), key=lambda x: x["title"])
+
+
 def map_config(settings: Settings) -> dict[str, Any]:
     """ค่าที่หน้าเว็บใช้สร้างแผนที่ (key ของ sphere ต้องอยู่ในหน้าเว็บ เพราะเบราว์เซอร์เป็นผู้โหลด tile)"""
     cfg: dict[str, Any] = {}
@@ -92,7 +103,7 @@ def build_payload(
                 tambons[code] = tambon_index.meta[code]
 
     reports = []
-    for r in store.query_reports(limit=200):
+    for r in store.query_reports(limit=200, exclude_kind="radar_image"):
         reports.append(
             {
                 "source": r["source"], "kind": r["kind"], "title": r["title"], "url": r["url"],
@@ -113,6 +124,7 @@ def build_payload(
         "reports": reports,
         "flood_geojson": _latest_geojson(store.raw_dir),
         "map": map_config(settings or Settings()),
+        "radar": _latest_radar(store),
         "tambons": tambons,
         "tambon_list": tambon_index.search_list() if tambon_index else [],
         "province_geo": province_geo,

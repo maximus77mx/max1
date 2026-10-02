@@ -213,6 +213,7 @@ tbody tr.sel { background: var(--surface-2); box-shadow: inset 3px 0 0 var(--acc
       <button role="tab" data-tab="dam_storage">เขื่อน</button>
       <button role="tab" data-tab="flood_area">พื้นที่ท่วม (ดาวเทียม)</button>
       <button role="tab" data-tab="street_flood">น้ำท่วมขัง กทม.</button>
+      <button role="tab" data-tab="radar" id="radarTab" hidden>เรดาร์ฝน</button>
       <button role="tab" data-tab="reports">รายงาน/ประกาศ</button>
       <button role="tab" data-tab="forecast">พยากรณ์ฝน</button>
     </div>
@@ -828,6 +829,7 @@ function renderDetail() {
 function renderTab() {
   document.querySelectorAll("#tabs button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === S.tab)));
   if (S.tab === "reports") return renderReports();
+  if (S.tab === "radar") return renderRadar();
   if (S.tab === "hotspots") return renderHotspots();
   if (S.tab === "forecast") return renderForecast();
   const K = KINDS[S.tab];
@@ -872,6 +874,15 @@ function renderHotspots() {
         <td class="num" title="${esc(t.rainName || "")}">${t.rain != null ? num(t.rain, 1) : "–"}</td><td class="num">${t.crit || "–"}</td></tr>`).join("")}
       </tbody></table></div>` : '<div class="empty">ยังไม่มีตำบลที่มีสัญญาณในตัวกรองนี้</div>'}`;
   document.querySelectorAll("tbody tr[data-tc]").forEach(tr => tr.addEventListener("click", () => zoomToTambon(tr.dataset.tc)));
+}
+function renderRadar() {
+  const list = DATA.radar || [];
+  $("#tabbody").innerHTML = list.length ? `<div class="toolbar"><span class="count">ภาพเรดาร์ล่าสุด ${list.length} สถานี (ที่มา: ThaiWater/สสน. รวบรวมจากกรมอุตุนิยมวิทยาและกรมฝนหลวงฯ) · คลิกภาพเพื่อเปิดขนาดเต็ม</span></div>
+    <div class="fc-grid">${list.map(r => `<a class="fc" href="${esc(r.url)}" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">
+      <h3>${esc(r.title)}</h3><div class="m">${r.t ? fmtTime(r.t) : ""}</div>
+      <img src="${esc(r.url)}" alt="${esc(r.title)}" loading="lazy" style="width:100%;margin-top:6px;border-radius:6px;background:var(--surface-2)"
+        onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'m',textContent:'โหลดภาพไม่ได้ — คลิกเพื่อเปิดลิงก์'}))">
+    </a>`).join("")}</div>` : '<div class="empty">ยังไม่มีภาพเรดาร์</div>';
 }
 function renderReports() {
   const list = DATA.reports.filter(r => !S.province || r.provinces.includes(S.province))
@@ -951,6 +962,7 @@ function renderFilters() {
   document.querySelectorAll("#range button").forEach(b => b.setAttribute("aria-pressed", String(Number(b.dataset.h) === S.hours)));
   $("#areaMetric").hidden = !HAS_GEO; $("#areaMetric").value = S.metric;
   $("#hotspotTab").hidden = !HAS_GEO;
+  $("#radarTab").hidden = !(DATA.radar || []).length;
   $("#layers").innerHTML = LAYER_DEFS.filter(([k]) => k !== "area" || HAS_GEO).map(([k, label]) =>
     `<label class="chip"><input type="checkbox" data-layer="${k}" ${S.layers.has(k) ? "checked" : ""}>${label}</label>`).join("");
   document.querySelectorAll("[data-layer]").forEach(cb => cb.addEventListener("change", () => {
