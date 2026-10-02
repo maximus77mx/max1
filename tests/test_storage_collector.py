@@ -164,3 +164,23 @@ def test_gistda_falls_back_to_longer_period():
     result = GistdaSource(settings, session=Session()).collect()
     assert len(result.observations) == 2 and result.observations[0].extra["period"] == "7days"
     assert "flood_1day.geojson" in result.raw
+
+
+def test_gistda_probe_masks_key_and_reports_shape():
+    from thaiflood.sources.gistda import GistdaSource
+
+    class Resp(FakeResponse):
+        status_code = 200
+        headers = {"content-type": "application/geo+json"}
+        text = ""
+
+    class Session:
+        def get(self, url, **kw):
+            return Resp({"type": "FeatureCollection", "features": [], "numberMatched": 0,
+                         "links": [{"rel": "self", "href": url + "?api_key=SECRET"}]})
+
+    settings = Settings()
+    settings.gistda_api_key = "SECRET"
+    lines = GistdaSource(settings, session=Session()).probe()
+    assert len(lines) == 8 and all("SECRET" not in l for l in lines)
+    assert "numberMatched" in lines[0] and "features=0" in lines[0]

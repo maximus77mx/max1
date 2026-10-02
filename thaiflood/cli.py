@@ -170,6 +170,14 @@ def cmd_dashboard(args: argparse.Namespace, settings: Settings) -> int:
     return 0
 
 
+def cmd_probe_gistda(args: argparse.Namespace, settings: Settings) -> int:
+    from .sources.gistda import GistdaSource
+
+    for line in GistdaSource(settings).probe():
+        print(line)
+    return 0
+
+
 def cmd_prune(args: argparse.Namespace, settings: Settings) -> int:
     with _store(settings) as store:
         rows, dirs = store.prune(args.keep_days)
@@ -240,6 +248,8 @@ def build_parser() -> argparse.ArgumentParser:
     d.add_argument("--collect", action="store_true", help="ดึงข้อมูลใหม่ทุกแหล่งก่อนสร้าง")
     d.add_argument("--no-geo", action="store_true", help="ไม่ทำแผนที่ระบายสีรายจังหวัด/ตำบล (ไม่ต้องดาวน์โหลดขอบเขต)")
     d.set_defaults(func=cmd_dashboard)
+
+    sub.add_parser("probe-gistda", help="ตรวจการตอบกลับของ GISTDA API ทุกช่วงเวลา").set_defaults(func=cmd_probe_gistda)
 
     pr = sub.add_parser("prune", help="ลบข้อมูลเก่าเพื่อคุมขนาดฐานข้อมูล")
     pr.add_argument("--keep-days", type=int, required=True)
