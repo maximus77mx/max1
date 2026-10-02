@@ -12,6 +12,7 @@ from importlib import resources
 from pathlib import Path
 from typing import Any
 
+from .config import Settings
 from .storage import Store
 from .utils import now_th
 
@@ -31,7 +32,27 @@ def _latest_geojson(raw_dir: Path | None) -> dict[str, Any] | None:
         return None
 
 
-def build_payload(store: Store, days: int = 7, province: str | None = None, note: str | None = None) -> dict[str, Any]:
+def map_config(settings: Settings) -> dict[str, Any]:
+    """ค่าที่หน้าเว็บใช้สร้างแผนที่ (key ของ sphere ต้องอยู่ในหน้าเว็บ เพราะเบราว์เซอร์เป็นผู้โหลด tile)"""
+    cfg: dict[str, Any] = {}
+    if settings.sphere_api_key:
+        cfg["sphere"] = {"key": settings.sphere_api_key, "url": settings.sphere_tile_url}
+    if settings.sphere_flood_wms_url:
+        cfg["flood_wms"] = {
+            "url": settings.sphere_flood_wms_url,
+            "layers": settings.sphere_flood_wms_layers or "",
+            "key": settings.sphere_api_key or "",
+        }
+    return cfg
+
+
+def build_payload(
+    store: Store,
+    days: int = 7,
+    province: str | None = None,
+    note: str | None = None,
+    settings: Settings | None = None,
+) -> dict[str, Any]:
     since = (now_th() - timedelta(days=days)).isoformat()
     rows = store.query_observations(since=since, province=province)
     rows.sort(key=lambda r: r["observed_at"])
@@ -76,6 +97,7 @@ def build_payload(store: Store, days: int = 7, province: str | None = None, note
         "series": series,
         "reports": reports,
         "flood_geojson": _latest_geojson(store.raw_dir),
+        "map": map_config(settings or Settings()),
     }
 
 

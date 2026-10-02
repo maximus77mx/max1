@@ -45,3 +45,18 @@ def test_cli_dashboard(tmp_path):
     out = tmp_path / "d.html"
     assert main(["--data-dir", str(tmp_path), "dashboard", str(out)]) == 0
     assert out.read_text(encoding="utf-8").startswith("<!doctype html>")
+
+
+def test_map_config_only_when_configured(tmp_path):
+    from thaiflood.config import Settings
+
+    s = Settings()
+    s.sphere_api_key = None
+    s.sphere_flood_wms_url = None
+    with Store(tmp_path / "db.sqlite3") as store:
+        assert build_payload(store, settings=s)["map"] == {}
+        s.sphere_api_key = "abc"
+        s.sphere_flood_wms_url = "https://example/wms"
+        cfg = build_payload(store, settings=s)["map"]
+    assert cfg["sphere"]["key"] == "abc" and "{layer}" in cfg["sphere"]["url"]
+    assert cfg["flood_wms"]["url"] == "https://example/wms"

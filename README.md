@@ -72,6 +72,17 @@ thaiflood dashboard --collect               # ดึงข้อมูลให�
 ถ้าต้องจำกัดเฉพาะทีม ใช้ Cloudflare Pages + Cloudflare Access หรือเซิร์ฟเวอร์ภายในที่รัน `thaiflood dashboard` ด้วย cron แทน
 และ runner ของ GitHub อยู่ต่างประเทศ ถ้าเว็บหน่วยงานไหนบล็อก IP ต่างประเทศ แหล่งนั้นจะดึงไม่ได้ (ดู log ในแท็บ Actions)
 
+### แผนที่ GISTDA sphere (ภาษาไทย) และชั้นน้ำท่วม
+
+ตั้ง `SPHERE_API_KEY` แล้ว dashboard จะใช้แผนที่จาก GISTDA sphere เป็นค่าเริ่มต้น (แผนที่ถนน / ภาพดาวเทียมไทย / ภาพดาวเทียม + ถนน)
+สลับได้จากปุ่มมุมขวาบนของแผนที่ ถ้าโหลด tile ไม่ได้ ระบบจะสลับไปใช้แผนที่สำรอง (CARTO) ให้เอง
+
+- รูปแบบ URL ของ tile ตั้งได้ที่ `SPHERE_TILE_URL` (ใช้ `{layer}`, `{ext}`, `{key}`, `{z}/{x}/{y}`)
+- ชั้นน้ำท่วมแบบ WMS: ตั้ง `SPHERE_FLOOD_WMS_URL` และ `SPHERE_FLOOD_WMS_LAYERS` ตามเอกสารของ sphere/GISTDA
+- **key นี้จะอยู่ในหน้าเว็บ** (เบราว์เซอร์เป็นผู้โหลดแผนที่) ควรจำกัดโดเมนที่ใช้ key ได้ในหน้าจัดการ key ของ sphere
+- บน GitHub Actions: เก็บ `SPHERE_API_KEY` เป็น Secret และ `SPHERE_FLOOD_WMS_URL` / `SPHERE_FLOOD_WMS_LAYERS` เป็น Variables
+  ขั้น "Check sphere basemap" ใน log จะบอกว่า URL ของแผนที่ตอบกลับอะไร
+
 ### ข้อมูลย้อนหลัง (Historical)
 
 1. **สะสมเอง** — ให้ `thaiflood schedule` รันต่อเนื่อง (systemd/Docker/cron) ข้อมูลทุกรอบจะถูก upsert

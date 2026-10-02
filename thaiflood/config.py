@@ -62,6 +62,17 @@ class Settings:
     tmd_token: str | None = _env("TMD_API_TOKEN")
     # URL ภาพเรดาร์ (ไม่ตั้ง = ไม่ดึง) เช่นลิงก์ภาพ composite ล่าสุดจากหน้าเรดาร์ของกรมอุตุฯ
     tmd_radar_url: str | None = _env("TMD_RADAR_URL")
+    # --- GISTDA sphere — แผนที่พื้นหลังภาษาไทย + ชั้นข้อมูลบนหน้า dashboard ---
+    # key นี้ถูกฝังในหน้าเว็บ (เบราว์เซอร์เป็นผู้โหลดแผนที่) ควรจำกัดโดเมนที่ใช้ key ได้ในหน้าจัดการ key
+    sphere_api_key: str | None = _env("SPHERE_API_KEY")
+    sphere_tile_url: str = _env(
+        "SPHERE_TILE_URL",
+        "https://basemap.sphere.gistda.or.th/tiles/{layer}/EPSG3857/{z}/{x}/{y}.{ext}?key={key}",
+    )
+    # ชั้นน้ำท่วมแบบ WMS (ใส่ URL และชื่อ layer จากเอกสาร sphere/GISTDA) — ไม่ตั้ง = ไม่แสดง
+    sphere_flood_wms_url: str | None = _env("SPHERE_FLOOD_WMS_URL")
+    sphere_flood_wms_layers: str | None = _env("SPHERE_FLOOD_WMS_LAYERS")
+
     # จุดพยากรณ์ฝน: "ชื่อ:lat:lon;ชื่อ:lat:lon"
     tmd_points: str = _env(
         "TMD_POINTS",
