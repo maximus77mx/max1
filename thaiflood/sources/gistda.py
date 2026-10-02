@@ -52,6 +52,16 @@ IMPACT_KEYS = ("building", "hospital", "school", "length_road", "rice_area", "ca
                "sugarcane_area", "para_area", "palm_area", "population", "household")
 
 
+def _strip(name: Any) -> Any:
+    """GISTDA ใส่คำนำหน้า เช่น "จ.อุดรธานี", "อ.กุมภวาปี", "ต.กุมภวาปี" — ตัดออกให้ตรงกับแหล่งอื่น"""
+    if not isinstance(name, str):
+        return name
+    for prefix in ("จ.", "อ.", "ต.", "จังหวัด", "อำเภอ", "ตำบล", "เขต", "แขวง"):
+        if name.startswith(prefix):
+            return name[len(prefix):].strip()
+    return name.strip()
+
+
 def _feature_rai(props: dict[str, Any]) -> float | None:
     """พื้นที่ท่วม (ไร่) — รองรับทั้งข้อมูลรายตำบล (area_rai) และข้อมูลหกเหลี่ยม H3 (f_area + h3_area)"""
     rai = to_float(_pick(props, "area_rai", "rai", "AREA_RAI"))
@@ -90,8 +100,9 @@ class FloodAggregator:
             if g is None:
                 g = self.groups[key] = {
                     "rai": None, "cells": 0, "lat": 0.0, "lon": 0.0, "n_xy": 0, "when": None,
-                    "name": _pick(props, "tb_tn", "tambon"), "province": _pick(props, "pv_tn", "province", "pv_name"),
-                    "amphoe": _pick(props, "ap_tn", "amphoe", "ap_name"), "impact": {},
+                    "name": _strip(_pick(props, "tb_tn", "tambon")),
+                    "province": _strip(_pick(props, "pv_tn", "province", "pv_name")),
+                    "amphoe": _strip(_pick(props, "ap_tn", "amphoe", "ap_name")), "impact": {},
                 }
             rai = _feature_rai(props)
             if rai is not None:
@@ -151,10 +162,19 @@ class GistdaSource(Source):
     def page_size(self) -> int:
         return self.settings.gistda_page_size
 
-    def _get_page(self, url: str, offset: int) -> dict[str, Any]:
+    # รูปแบบคำขอที่ลองตามลำดับ — พบว่า API คืน 0 รายการกับบางพารามิเตอร์ (เช่น limit ใหญ่/skipGeometry)
+    # จึงใช้แบบแรกที่ numberMatched > 0 แล้วดึงต่อด้วยแบบนั้นทั้งรอบ
+    VARIANTS = (
+        {"limit": None, "skipGeometry": "true"},
+        {"limit": None},
+        {"limit": 1000},
+    )
+
+    def _get_page(self, url: str, offset: int, variant: dict[str, Any] | None = None) -> dict[str, Any]:
         # ลิงก์ที่ API ส่งกลับมีรูปแบบ ?api_key=... จึงส่ง key ทั้งใน header และ query
-        # skipGeometry: ไม่ต้องใช้รูปหกเหลี่ยม (ระบุตำแหน่งจากรหัสตำบล) ทำให้ตอบเร็วและเล็กลง (ถ้า API ไม่รองรับก็แค่ไม่สนใจ)
-        params = {"limit": self.page_size, "offset": offset, "api_key": self.settings.gistda_api_key, "skipGeometry": "true"}
+        variant = variant or {"limit": None}
+        params = {k: v for k, v in variant.items() if k != "limit"}
+        params.update(limit=variant.get("limit") or self.page_size, offset=offset, api_key=self.settings.gistda_api_key)
         resp = self.session.get(url, headers={"API-Key": self.settings.gistda_api_key}, params=params,
                                 timeout=(self.settings.timeout[0], self.settings.gistda_read_timeout))
         resp.raise_for_status()
@@ -172,18 +192,29 @@ class GistdaSource(Source):
         keep: list[dict[str, Any]] | None = []
         started, offset, pages = time.monotonic(), 0, 0
         meta: dict[str, Any] = {}
+        variant, first = self.VARIANTS[-1], None
+        for v in self.VARIANTS:
+            first = self._get_page(url, 0, v)
+            if first.get("numberMatched") or first.get("features"):
+                variant = v
+                break
+        meta["variant"] = {k: (val or self.page_size) for k, val in variant.items()}
         while True:
-            page = self._get_page(url, offset)
+            page = first if first is not None and offset == 0 else self._get_page(url, offset, variant)
+            first = None
             self._last_page = page
             pages += 1
             batch = page.get("features") or page.get("data") or []
-            meta = {k: page[k] for k in ("numberMatched", "timeStamp") if k in page}
+            meta.update({k: page[k] for k in ("numberMatched", "timeStamp") if k in page})
             agg.add(batch)
+            if pages % 20 == 0:
+                log.info("gistda %s: ดึงแล้ว %s/%s รายการ (%s วินาที)", period, agg.features,
+                         meta.get("numberMatched", "?"), round(time.monotonic() - started))
             if keep is not None:
                 keep.extend(batch)
                 if len(keep) > 5000:
                     keep = None  # ใหญ่เกินจะเก็บ raw ทั้งก้อน
-            if len(batch) < self.page_size:
+            if not batch or len(batch) < (variant.get("limit") or self.page_size):
                 break
             offset += len(batch)
             if time.monotonic() - started > self.settings.gistda_time_budget:
@@ -244,7 +275,8 @@ class GistdaSource(Source):
                     result.raw["flood_1day.geojson"] = {"type": "FeatureCollection", "features": features}  # dashboard วาด polygon จากไฟล์นี้
                 if meta.get("truncated"):
                     result.errors.append(f"{p}: ดึงไม่ครบเพราะเกินเวลาที่กำหนด — ได้ {meta['features']:,} จาก {meta.get('numberMatched', '?'):,} รายการ")
-                log.info("gistda %s: %s รายการ, %s หน้า, %s วินาที → %s ตำบล", p, meta["features"], meta["pages"], meta["seconds"], len(observations))
+                log.info("gistda %s: %s รายการ, %s หน้า, %s วินาที → %s ตำบล (คำขอ %s)",
+                         p, meta["features"], meta["pages"], meta["seconds"], len(observations), meta.get("variant"))
                 break
             info = {k: meta[k] for k in ("numberMatched", "timeStamp") if k in meta}
             empty.append(f"{p}={info or 'ไม่มี feature'}")
