@@ -11,6 +11,29 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 
+def load_env_file(path: str | os.PathLike[str] | None = None) -> None:
+    """อ่านไฟล์ .env (KEY=VALUE ทีละบรรทัด) เข้า environment — ค่าที่ตั้งไว้ใน environment แล้วจะไม่ถูกทับ
+
+    ค่าเริ่มต้นอ่าน ./.env หรือไฟล์ที่ระบุใน THAIFLOOD_ENV_FILE เพื่อให้ติดตั้งในเครื่อง (โดยเฉพาะ Windows)
+    ใส่ key ครั้งเดียวในไฟล์ได้ ไม่ต้องตั้ง environment variable ทุกครั้ง
+    """
+    file = Path(path or os.environ.get("THAIFLOOD_ENV_FILE") or ".env")
+    if not file.is_file():
+        return
+    for line in file.read_text(encoding="utf-8-sig").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip().removeprefix("export ").strip()
+        value = value.strip().strip('"').strip("'")
+        if key:
+            os.environ.setdefault(key, value)
+
+
+load_env_file()
+
+
 def _env(name: str, default: str | None = None) -> str | None:
     value = os.environ.get(name)
     return value if value not in (None, "") else default

@@ -25,7 +25,8 @@ pip install -e ".[dev]"     # ต้องการ Python 3.10+ และ reque
 thaiflood sources                       # ดูรายการแหล่ง
 thaiflood collect                       # ดึงทุกแหล่ง 1 รอบ
 thaiflood collect thaiwater bma         # ดึงเฉพาะบางแหล่ง
-thaiflood schedule                      # รันค้างไว้ ดึงแต่ละแหล่งตามรอบในตารางด้านบน
+thaiflood serve                         # ติดตั้งในเครื่อง: ดึงตามรอบ + สร้าง dashboard + เปิดเว็บ (ดูด้านล่าง)
+thaiflood schedule                      # รันค้างไว้ ดึงแต่ละแหล่งตามรอบในตารางด้านบน (ไม่สร้างหน้าเว็บ)
 thaiflood latest --hours 24             # สรุปสถานการณ์: สถานีวิกฤต, ฝนหนัก ≥35 มม., พื้นที่ท่วม, จุดท่วมขัง กทม., ประกาศล่าสุด
 thaiflood latest --province เชียงราย
 thaiflood stats                         # มีข้อมูลอะไรบ้าง ช่วงเวลาไหน
@@ -54,6 +55,49 @@ thaiflood dashboard --collect               # ดึงข้อมูลให�
 - ธีมสว่าง/มืด และรองรับมือถือ
 
 แผนที่พื้นหลังกับไลบรารี Leaflet โหลดจากอินเทอร์เน็ต ถ้าออฟไลน์ แผนที่จะไม่ขึ้น แต่ตัวเลขสรุป กราฟ ตาราง และรายงานยังใช้งานได้
+
+### ติดตั้งในเครื่อง / server ในออฟฟิศ (`thaiflood serve`)
+
+คำสั่งเดียว: ดึงข้อมูลตามรอบของแต่ละแหล่ง → สร้าง dashboard ใหม่ → เปิดหน้าเว็บให้คนใน LAN เข้าดู
+เหมาะกับเครื่องที่อยู่ในไทย (ดึงข้อมูล ปภ. / สทนช. / กทม. ที่บล็อกการเข้าจากต่างประเทศได้)
+
+1. ติดตั้ง Python 3.10+ (Windows: ติ๊ก "Add python.exe to PATH" ตอนติดตั้ง)
+2. ดาวน์โหลดโค้ดแล้วติดตั้ง
+   ```bash
+   git clone https://github.com/maximus77mx/max1.git
+   cd max1
+   pip install .
+   ```
+3. คัดลอก `.env.example` เป็น `.env` แล้วใส่ key (`GISTDA_API_KEY`, `SPHERE_API_KEY`, `TMD_API_TOKEN`)
+   — key ของ sphere ที่จำกัด Clients ไว้ที่ github.io จะใช้ในเครื่องไม่ได้ ให้สร้าง key แยกที่ Clients เป็น IP/ชื่อเครื่อง
+4. รัน
+   ```bash
+   thaiflood serve                  # http://localhost:8000
+   thaiflood serve --port 8080      # เปลี่ยนพอร์ต
+   thaiflood serve --host 127.0.0.1 # ให้เปิดได้เฉพาะเครื่องนี้
+   ```
+   หน้าจอจะบอกลิงก์สำหรับเครื่องอื่นใน LAN เช่น `http://192.168.1.20:8000/` (ครั้งแรกอาจต้องอนุญาตใน Firewall)
+
+ข้อมูลอยู่ในโฟลเดอร์ `data/` (ฐานข้อมูล, ไฟล์ดิบ, หน้าเว็บที่ `data/site/`) — สำรองโฟลเดอร์นี้โฟลเดอร์เดียวพอ
+
+**ให้รันเองเมื่อเปิดเครื่อง**
+- Windows: Task Scheduler → Create Task → Trigger "At startup" → Action: Program `thaiflood`, Arguments `serve`,
+  Start in = โฟลเดอร์ `max1` (ที่มีไฟล์ `.env`)
+- Linux (systemd): สร้าง `/etc/systemd/system/thaiflood.service`
+  ```ini
+  [Unit]
+  Description=Thai flood dashboard
+  After=network-online.target
+
+  [Service]
+  WorkingDirectory=/opt/max1
+  ExecStart=/usr/local/bin/thaiflood serve
+  Restart=always
+
+  [Install]
+  WantedBy=multi-user.target
+  ```
+  แล้ว `sudo systemctl enable --now thaiflood`
 
 ### ขึ้นออนไลน์ให้ทีมใช้ (GitHub Actions + GitHub Pages)
 
@@ -178,6 +222,7 @@ thaiflood/
   storage.py       SQLite + raw files + export CSV
   collector.py     collect() และ run_schedule()
   cli.py           คำสั่ง thaiflood
+  serve.py         thaiflood serve (ดึงตามรอบ + สร้างหน้าเว็บ + HTTP server)
   dashboard.py     สร้าง Interactive HTML (+ dashboard_template.html)
   geo.py           ขอบเขตจังหวัด/ตำบล, หาตำบลจากพิกัด, ย่อรูปทรง
   sources/         adapter ต่อแหล่ง: fetch แยกจาก parse เพื่อทดสอบด้วย fixture ได้

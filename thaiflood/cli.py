@@ -59,6 +59,14 @@ def cmd_schedule(args: argparse.Namespace, settings: Settings) -> int:
     return 0
 
 
+def cmd_serve(args: argparse.Namespace, settings: Settings) -> int:
+    from .serve import serve
+
+    serve(settings, host=args.host, port=args.port, every_minutes=args.every, days=args.days, geo=not args.no_geo,
+          max_cycles=args.cycles)
+    return 0
+
+
 def cmd_backfill(args: argparse.Namespace, settings: Settings) -> int:
     """ดึงระดับน้ำย้อนหลังรายสถานีจาก ThaiWater ทีละช่วง (chunk) เพื่อไม่ให้ request ใหญ่เกิน"""
     src = ThaiWaterSource(settings)
@@ -209,7 +217,16 @@ def build_parser() -> argparse.ArgumentParser:
     c.add_argument("--respect-intervals", action="store_true", help="ข้ามแหล่งที่ยังไม่ถึงรอบของตัวเอง (ใช้กับ cron รายชั่วโมง)")
     c.set_defaults(func=cmd_collect)
 
-    s = sub.add_parser("schedule", help="รันค้างไว้ ดึงตามรอบของแต่ละแหล่ง")
+    sv = sub.add_parser("serve", help="ติดตั้งในเครื่อง: ดึงข้อมูลตามรอบ + สร้าง dashboard + เปิดเว็บใน LAN")
+    sv.add_argument("--port", type=int, default=8000)
+    sv.add_argument("--host", default="0.0.0.0", help="0.0.0.0 = ให้เครื่องอื่นใน LAN เข้าได้, 127.0.0.1 = เฉพาะเครื่องนี้")
+    sv.add_argument("--every", type=float, default=10, help="ตรวจรอบทุกกี่นาที (ค่าเริ่มต้น 10)")
+    sv.add_argument("--days", type=int, default=7, help="ข้อมูลย้อนหลังในหน้า dashboard (วัน)")
+    sv.add_argument("--no-geo", action="store_true", help="ไม่ทำแผนที่รายตำบล")
+    sv.add_argument("--cycles", type=int, help=argparse.SUPPRESS)  # ใช้ทดสอบ
+    sv.set_defaults(func=cmd_serve)
+
+    s = sub.add_parser("schedule", help="รันค้างไว้ ดึงตามรอบของแต่ละแหล่ง (ไม่สร้าง dashboard)")
     s.add_argument("source", nargs="*", metavar="SOURCE")
     s.set_defaults(func=cmd_schedule)
 
