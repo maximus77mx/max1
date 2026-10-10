@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime, timedelta
 from importlib import resources
 from pathlib import Path
@@ -154,7 +155,14 @@ def write_dashboard(store: Store, output: Path, geo: bool = True, **kwargs: Any)
             print(f"ข้ามแผนที่รายตำบล: {exc}")
     payload = build_payload(store, **kwargs)
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(render(payload), encoding="utf-8")
+    # เขียนไฟล์ชั่วคราวแล้วสลับ ให้ web server (IIS/Apache/Nginx) ไม่ส่งหน้าที่เขียนไม่เสร็จให้ผู้ใช้
+    tmp = output.with_name(output.name + ".tmp")
+    tmp.write_text(render(payload), encoding="utf-8")
+    try:
+        os.replace(tmp, output)
+    except PermissionError:  # Windows: ไฟล์ปลายทางถูกเปิดค้างอยู่ — เขียนทับตรง ๆ แทน
+        output.write_text(tmp.read_text(encoding="utf-8"), encoding="utf-8")
+        tmp.unlink(missing_ok=True)
     return output
 
 

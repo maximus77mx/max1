@@ -99,6 +99,33 @@ thaiflood dashboard --collect               # ดึงข้อมูลให�
   ```
   แล้ว `sudo systemctl enable --now thaiflood`
 
+### ติดตั้งบน Windows Server + IIS (หรือ Apache / Nginx)
+
+หน้า dashboard เป็นไฟล์ static ล้วน (`index.html` + โฟลเดอร์ `geo/`) web server ใดก็เสิร์ฟได้ ไม่ต้องตั้ง Python/FastCGI ใน IIS
+ส่วน Python ใช้แค่ "ดึงข้อมูลแล้วเขียนไฟล์" ผ่าน Task Scheduler
+
+```
+Task Scheduler (ทุก 10–15 นาที) → thaiflood-update.bat → C:\inetpub\wwwroot\flood\index.html + geo\ → IIS → ผู้ใช้
+```
+
+1. ติดตั้ง Python 3.10+ แล้ว
+   ```bat
+   git clone https://github.com/maximus77mx/max1.git C:\thaiflood\max1
+   cd C:\thaiflood\max1
+   python -m venv .venv
+   .venv\Scripts\pip install .
+   copy .env.example .env   &  REM แล้วใส่ key
+   ```
+   ถ้าออกอินเทอร์เน็ตผ่าน proxy ขององค์กร ใส่ `HTTPS_PROXY=http://proxy:port` ใน `.env` ด้วย
+2. IIS: สร้าง Site/Application ชี้ไปที่ `C:\inetpub\wwwroot\flood` แล้วคัดลอก `deploy\iis\web.config` ไปวางในโฟลเดอร์นั้น
+   (ตั้ง MIME `.json`, ปิด cache ของ `index.html`, เปิดการบีบอัด — ติดตั้ง role "Static Content Compression" ด้วยจะเร็วขึ้นมาก)
+3. แก้ `APP_DIR` / `WEB_DIR` ใน `deploy\windows\thaiflood-update.bat` แล้วตั้ง Task Scheduler:
+   Trigger ทุก 10–15 นาที, "Run whether user is logged on or not", บัญชีที่รันต้องมีสิทธิ์เขียนโฟลเดอร์เว็บ
+4. รัน `thaiflood-update.bat` ครั้งแรกด้วยมือ แล้วเปิด `http://<server>/flood/` — log อยู่ที่ `data\update.log`
+
+Apache/Nginx ใช้แนวเดียวกัน: ชี้ DocumentRoot/root ไปที่โฟลเดอร์ output แล้วใช้ cron แทน Task Scheduler
+(`thaiflood collect --respect-intervals && thaiflood dashboard /var/www/flood/index.html`)
+
 ### ขึ้นออนไลน์ให้ทีมใช้ (GitHub Actions + GitHub Pages)
 
 `.github/workflows/flood-dashboard.yml` ทำงานทุกชั่วโมง: ดึงข้อมูล → ลบข้อมูลที่เก่ากว่า 60 วัน → สร้าง dashboard → ขึ้น Pages
