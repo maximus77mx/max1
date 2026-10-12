@@ -1,0 +1,15 @@
+{
+  "name": "ca-register-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "QA Corrective Action Register + Interactive Dashboard (React + Express + SQLite)",
+  "scripts": {
+    "install:all": "npm install && npm --prefix server install && npm --prefix client install",
+    "dev": "concurrently -n server,client -c green,cyan \"npm --prefix server run dev\" \"npm --prefix client run dev\"",
+    "build": "npm --prefix client run build",
+    "start": "npm --prefix server start"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}
