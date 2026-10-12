@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime, timedelta
 from importlib import resources
 from pathlib import Path
@@ -21,7 +22,9 @@ from .utils import now_th
 _EXTRA_KEYS = ("min_bank", "ground_level", "storage_mcm", "inflow_mcm", "released_mcm", "river", "storage_percent",
                # ผลกระทบในพื้นที่ท่วม (GISTDA)
                "cells", "period", "building", "hospital", "school", "length_road", "rice_area", "cassava_area",
-               "maize_area", "sugarcane_area", "para_area", "palm_area", "population", "household")
+               "maize_area", "sugarcane_area", "para_area", "palm_area", "population", "household",
+               # จุดน้ำท่วมขัง กทม.
+               "road", "main_road", "highest", "start_flood")
 
 
 def _latest_geojson(raw_dir: Path | None) -> dict[str, Any] | None:
@@ -34,6 +37,17 @@ def _latest_geojson(raw_dir: Path | None) -> dict[str, Any] | None:
         return json.loads(files[-1].read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return None
+
+
+def _latest_radar(store: Store) -> list[dict[str, Any]]:
+    """ภาพเรดาร์ล่าสุดของแต่ละสถานี (ชื่อเดียวกัน = สถานีเดียวกัน)"""
+    latest: dict[str, dict[str, Any]] = {}
+    for r in store.query_reports(kind="radar_image", limit=500):
+        key = r["title"]
+        when = r["published_at"] or r["collected_at"]
+        if key not in latest or when > latest[key]["t"]:
+            latest[key] = {"title": r["title"], "url": r["url"], "t": when}
+    return sorted(latest.values(), key=lambda x: x["title"])
 
 
 def map_config(settings: Settings) -> dict[str, Any]:
@@ -92,7 +106,7 @@ def build_payload(
                 tambons[code] = tambon_index.meta[code]
 
     reports = []
-    for r in store.query_reports(limit=200):
+    for r in store.query_reports(limit=200, exclude_kind="radar_image"):
         reports.append(
             {
                 "source": r["source"], "kind": r["kind"], "title": r["title"], "url": r["url"],
@@ -113,6 +127,7 @@ def build_payload(
         "reports": reports,
         "flood_geojson": _latest_geojson(store.raw_dir),
         "map": map_config(settings or Settings()),
+        "radar": _latest_radar(store),
         "tambons": tambons,
         "tambon_list": tambon_index.search_list() if tambon_index else [],
         "province_geo": province_geo,
@@ -142,7 +157,14 @@ def write_dashboard(store: Store, output: Path, geo: bool = True, **kwargs: Any)
             print(f"ข้ามแผนที่รายตำบล: {exc}")
     payload = build_payload(store, **kwargs)
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(render(payload), encoding="utf-8")
+    # เขียนไฟล์ชั่วคราวแล้วสลับ ให้ web server (IIS/Apache/Nginx) ไม่ส่งหน้าที่เขียนไม่เสร็จให้ผู้ใช้
+    tmp = output.with_name(output.name + ".tmp")
+    tmp.write_text(render(payload), encoding="utf-8")
+    try:
+        os.replace(tmp, output)
+    except PermissionError:  # Windows: ไฟล์ปลายทางถูกเปิดค้างอยู่ — เขียนทับตรง ๆ แทน
+        output.write_text(tmp.read_text(encoding="utf-8"), encoding="utf-8")
+        tmp.unlink(missing_ok=True)
     return output
 
 

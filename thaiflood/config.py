@@ -11,6 +11,29 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 
+def load_env_file(path: str | os.PathLike[str] | None = None) -> None:
+    """อ่านไฟล์ .env (KEY=VALUE ทีละบรรทัด) เข้า environment — ค่าที่ตั้งไว้ใน environment แล้วจะไม่ถูกทับ
+
+    ค่าเริ่มต้นอ่าน ./.env หรือไฟล์ที่ระบุใน THAIFLOOD_ENV_FILE เพื่อให้ติดตั้งในเครื่อง (โดยเฉพาะ Windows)
+    ใส่ key ครั้งเดียวในไฟล์ได้ ไม่ต้องตั้ง environment variable ทุกครั้ง
+    """
+    file = Path(path or os.environ.get("THAIFLOOD_ENV_FILE") or ".env")
+    if not file.is_file():
+        return
+    for line in file.read_text(encoding="utf-8-sig").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip().removeprefix("export ").strip()
+        value = value.strip().strip('"').strip("'")
+        if key:
+            os.environ.setdefault(key, value)
+
+
+load_env_file()
+
+
 def _env(name: str, default: str | None = None) -> str | None:
     value = os.environ.get(name)
     return value if value not in (None, "") else default
@@ -36,6 +59,9 @@ class Settings:
     thaiwater_waterlevel_path: str = _env("THAIWATER_WATERLEVEL_PATH", "/public/waterlevel_load")
     thaiwater_rain_path: str = _env("THAIWATER_RAIN_PATH", "/public/rain_24h")
     # ลองตามลำดับจนเจอ path ที่ตอบกลับ (คั่นด้วย ,) — thailand_main มีข้อมูลเขื่อนอยู่ใน dam_data
+    thaiwater_main_path: str = _env("THAIWATER_MAIN_PATH", "/public/thailand_main")
+    # ฐานของลิงก์ภาพที่เป็น path สัมพัทธ์ (ภาพเรดาร์ ฯลฯ)
+    thaiwater_media_base: str = _env("THAIWATER_MEDIA_BASE", "https://api-v3.thaiwater.net/")
     thaiwater_dam_path: str = _env("THAIWATER_DAM_PATH", "/public/dam_daily,/public/dam_load,/public/thailand_main")
     # กราฟย้อนหลังรายสถานี (historical) — {station_id}, {start}, {end} จะถูกแทนค่า
     thaiwater_waterlevel_graph_path: str = _env(
@@ -58,6 +84,12 @@ class Settings:
     onwr_url: str = _env("ONWR_URL", "https://www.onwr.go.th/?cat=37")
 
     # --- สำนักการระบายน้ำ กทม. — จุดน้ำท่วมขังรายจุด ---
+    # API ของหน้า floodbangkok.bangkok.go.th (ไม่ต้องใช้ key) — ตั้งเป็นค่าว่างเพื่อกลับไปอ่าน BMA_DDS_URL
+    bma_api_base: str | None = os.environ.get(
+        "BMA_API_BASE", "https://floodbangkok.bangkok.go.th/bkk/dds/services/api/floods/v1/items"
+    ) or None
+    # แจ้งเตือนที่เก่ากว่านี้ (นาที) ถือว่าน้ำลดแล้ว
+    bma_active_minutes: int = int(_env("BMA_ACTIVE_MINUTES", "60"))
     bma_url: str = _env("BMA_DDS_URL", "https://dds.bangkok.go.th/Floodmon/")
 
     # --- กรมอุตุนิยมวิทยา — NWP API (ต้องขอ token ที่ data.tmd.go.th) ---
@@ -107,7 +139,7 @@ class Settings:
 DEFAULT_INTERVALS: dict[str, int] = {
     "thaiwater": 60 * 60,      # รายชั่วโมง
     "tmd": 3 * 60 * 60,        # พยากรณ์อัปเดตทุก ~3 ชม.
-    "bma": 30 * 60,            # จุดน้ำท่วมขัง กทม. เปลี่ยนเร็วช่วงฝนตก
+    "bma": 15 * 60,            # จุดน้ำท่วมขัง กทม. เปลี่ยนเร็วช่วงฝนตก (เซนเซอร์รายงานทุก ~5 นาที)
     "onwr": 3 * 60 * 60,
     "gistda": 12 * 60 * 60,    # ภาพดาวเทียมรายวัน (ข้อมูล 7 วันเป็นแสนรายการ — ไม่ดึงถี่)
     "disaster": 12 * 60 * 60,  # รายงาน ปภ. ออกวันละ 1–2 ครั้ง

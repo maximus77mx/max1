@@ -1,0 +1,6 @@
+{"dam": {"data": {"result": "OK", "data": [
+  {"dam": {"id": 1, "dam_name": {"th": "เขื่อนภูมิพล"}}, "dam_date": "2026-10-02", "dam_storage_percent": 71.2}]}},
+ "radar": {"data": [
+  {"radar_name": {"th": "สทิงพระ"}, "radar_datetime": "2026-10-02 15:10", "media_path": "product/radar/stp/stp240_latest.gif"},
+  {"radar_name": {"th": "เชียงราย"}, "media": [{"datetime": "2026-10-02 15:00", "url": "https://example.org/cri.png"}]}
+ ]}}

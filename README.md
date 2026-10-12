@@ -10,7 +10,7 @@
 | GISTDA | `gistda` | พื้นที่น้ำท่วมจากดาวเทียม รายตำบล (ไร่) + GeoJSON เต็ม | 1 วัน | `GISTDA_API_KEY` |
 | ปภ. (disaster.go.th) | `disaster` | รายงานสถานการณ์: จำนวนจังหวัด/อำเภอ/ตำบล/หมู่บ้าน/ครัวเรือน/ผู้เสียชีวิต/บาดเจ็บ | 12 ชม. | – |
 | สทนช. (onwr.go.th) | `onwr` | ประกาศเตือนภัย + จังหวัดเสี่ยง | 3 ชม. | – |
-| สำนักการระบายน้ำ กทม. | `bma` | จุดน้ำท่วมขังรายจุด (ซม.) | 30 นาที | – |
+| สำนักการระบายน้ำ กทม. | `bma` | เซนเซอร์น้ำท่วมขังบนถนน 254 จุด (ซม.) จาก API ของ floodbangkok.bangkok.go.th | 15 นาที | – |
 | กรมอุตุนิยมวิทยา | `tmd` | พยากรณ์ฝนรายชั่วโมง 48 ชม. (+ ภาพเรดาร์ ถ้าตั้ง `TMD_RADAR_URL`) | 3 ชม. | `TMD_API_TOKEN` (เฉพาะพยากรณ์) |
 
 ## ติดตั้ง
@@ -25,7 +25,8 @@ pip install -e ".[dev]"     # ต้องการ Python 3.10+ และ reque
 thaiflood sources                       # ดูรายการแหล่ง
 thaiflood collect                       # ดึงทุกแหล่ง 1 รอบ
 thaiflood collect thaiwater bma         # ดึงเฉพาะบางแหล่ง
-thaiflood schedule                      # รันค้างไว้ ดึงแต่ละแหล่งตามรอบในตารางด้านบน
+thaiflood serve                         # ติดตั้งในเครื่อง: ดึงตามรอบ + สร้าง dashboard + เปิดเว็บ (ดูด้านล่าง)
+thaiflood schedule                      # รันค้างไว้ ดึงแต่ละแหล่งตามรอบในตารางด้านบน (ไม่สร้างหน้าเว็บ)
 thaiflood latest --hours 24             # สรุปสถานการณ์: สถานีวิกฤต, ฝนหนัก ≥35 มม., พื้นที่ท่วม, จุดท่วมขัง กทม., ประกาศล่าสุด
 thaiflood latest --province เชียงราย
 thaiflood stats                         # มีข้อมูลอะไรบ้าง ช่วงเวลาไหน
@@ -55,6 +56,76 @@ thaiflood dashboard --collect               # ดึงข้อมูลให�
 
 แผนที่พื้นหลังกับไลบรารี Leaflet โหลดจากอินเทอร์เน็ต ถ้าออฟไลน์ แผนที่จะไม่ขึ้น แต่ตัวเลขสรุป กราฟ ตาราง และรายงานยังใช้งานได้
 
+### ติดตั้งในเครื่อง / server ในออฟฟิศ (`thaiflood serve`)
+
+คำสั่งเดียว: ดึงข้อมูลตามรอบของแต่ละแหล่ง → สร้าง dashboard ใหม่ → เปิดหน้าเว็บให้คนใน LAN เข้าดู
+เหมาะกับเครื่องที่อยู่ในไทย (ดึงข้อมูล ปภ. / สทนช. / กทม. ที่บล็อกการเข้าจากต่างประเทศได้)
+
+1. ติดตั้ง Python 3.10+ (Windows: ติ๊ก "Add python.exe to PATH" ตอนติดตั้ง)
+2. ดาวน์โหลดโค้ดแล้วติดตั้ง
+   ```bash
+   git clone https://github.com/maximus77mx/max1.git
+   cd max1
+   pip install .
+   ```
+3. คัดลอก `.env.example` เป็น `.env` แล้วใส่ key (`GISTDA_API_KEY`, `SPHERE_API_KEY`, `TMD_API_TOKEN`)
+   — key ของ sphere ที่จำกัด Clients ไว้ที่ github.io จะใช้ในเครื่องไม่ได้ ให้สร้าง key แยกที่ Clients เป็น IP/ชื่อเครื่อง
+4. รัน
+   ```bash
+   thaiflood serve                  # http://localhost:8000
+   thaiflood serve --port 8080      # เปลี่ยนพอร์ต
+   thaiflood serve --host 127.0.0.1 # ให้เปิดได้เฉพาะเครื่องนี้
+   ```
+   หน้าจอจะบอกลิงก์สำหรับเครื่องอื่นใน LAN เช่น `http://192.168.1.20:8000/` (ครั้งแรกอาจต้องอนุญาตใน Firewall)
+
+ข้อมูลอยู่ในโฟลเดอร์ `data/` (ฐานข้อมูล, ไฟล์ดิบ, หน้าเว็บที่ `data/site/`) — สำรองโฟลเดอร์นี้โฟลเดอร์เดียวพอ
+
+**ให้รันเองเมื่อเปิดเครื่อง**
+- Windows: Task Scheduler → Create Task → Trigger "At startup" → Action: Program `thaiflood`, Arguments `serve`,
+  Start in = โฟลเดอร์ `max1` (ที่มีไฟล์ `.env`)
+- Linux (systemd): สร้าง `/etc/systemd/system/thaiflood.service`
+  ```ini
+  [Unit]
+  Description=Thai flood dashboard
+  After=network-online.target
+
+  [Service]
+  WorkingDirectory=/opt/max1
+  ExecStart=/usr/local/bin/thaiflood serve
+  Restart=always
+
+  [Install]
+  WantedBy=multi-user.target
+  ```
+  แล้ว `sudo systemctl enable --now thaiflood`
+
+### ติดตั้งบน Windows Server + IIS (หรือ Apache / Nginx)
+
+หน้า dashboard เป็นไฟล์ static ล้วน (`index.html` + โฟลเดอร์ `geo/`) web server ใดก็เสิร์ฟได้ ไม่ต้องตั้ง Python/FastCGI ใน IIS
+ส่วน Python ใช้แค่ "ดึงข้อมูลแล้วเขียนไฟล์" ผ่าน Task Scheduler
+
+```
+Task Scheduler (ทุก 10–15 นาที) → thaiflood-update.bat → C:\inetpub\wwwroot\flood\index.html + geo\ → IIS → ผู้ใช้
+```
+
+1. ติดตั้ง Python 3.10+ แล้ว
+   ```bat
+   git clone https://github.com/maximus77mx/max1.git C:\thaiflood\max1
+   cd C:\thaiflood\max1
+   python -m venv .venv
+   .venv\Scripts\pip install .
+   copy .env.example .env   &  REM แล้วใส่ key
+   ```
+   ถ้าออกอินเทอร์เน็ตผ่าน proxy ขององค์กร ใส่ `HTTPS_PROXY=http://proxy:port` ใน `.env` ด้วย
+2. IIS: สร้าง Site/Application ชี้ไปที่ `C:\inetpub\wwwroot\flood` แล้วคัดลอก `deploy\iis\web.config` ไปวางในโฟลเดอร์นั้น
+   (ตั้ง MIME `.json`, ปิด cache ของ `index.html`, เปิดการบีบอัด — ติดตั้ง role "Static Content Compression" ด้วยจะเร็วขึ้นมาก)
+3. แก้ `APP_DIR` / `WEB_DIR` ใน `deploy\windows\thaiflood-update.bat` แล้วตั้ง Task Scheduler:
+   Trigger ทุก 10–15 นาที, "Run whether user is logged on or not", บัญชีที่รันต้องมีสิทธิ์เขียนโฟลเดอร์เว็บ
+4. รัน `thaiflood-update.bat` ครั้งแรกด้วยมือ แล้วเปิด `http://<server>/flood/` — log อยู่ที่ `data\update.log`
+
+Apache/Nginx ใช้แนวเดียวกัน: ชี้ DocumentRoot/root ไปที่โฟลเดอร์ output แล้วใช้ cron แทน Task Scheduler
+(`thaiflood collect --respect-intervals && thaiflood dashboard /var/www/flood/index.html`)
+
 ### ขึ้นออนไลน์ให้ทีมใช้ (GitHub Actions + GitHub Pages)
 
 `.github/workflows/flood-dashboard.yml` ทำงานทุกชั่วโมง: ดึงข้อมูล → ลบข้อมูลที่เก่ากว่า 60 วัน → สร้าง dashboard → ขึ้น Pages
@@ -67,6 +138,14 @@ thaiflood dashboard --collect               # ดึงข้อมูลให�
 4. **Actions → Flood dashboard → Run workflow** เพื่อรันรอบแรก
 
 จากนั้นแชร์ลิงก์ `https://maximus77mx.github.io/max1/` ให้ทีม
+
+#### ถ้า GitHub ไม่รันตามเวลา (ใช้ตัวตั้งเวลาภายนอก)
+
+GitHub ไม่รับประกันเวลาของ `schedule` บาง repo ไม่ถูกรันเลย ใช้บริการภายนอก (เช่น cron-job.org) สั่งรันทุกชั่วโมงแทน:
+1. สร้าง fine-grained token: GitHub → Settings → Developer settings → Fine-grained tokens → เลือกเฉพาะ repo นี้ → Permissions: **Actions: Read and write**
+2. ตั้งงานรายชั่วโมงให้ส่ง `POST https://api.github.com/repos/<owner>/<repo>/actions/workflows/flood-dashboard.yml/dispatches`
+   - Headers: `Authorization: Bearer <token>`, `Accept: application/vnd.github+json`
+   - Body: `{"ref":"master","inputs":{"respect_intervals":"true"}}` (ดึงเฉพาะแหล่งที่ถึงรอบ)
 
 หมายเหตุ: GitHub Pages ของ repo public เปิดดูได้ทุกคนที่มีลิงก์ (key ไม่หลุด เพราะอยู่ใน Secret)
 ถ้าต้องจำกัดเฉพาะทีม ใช้ Cloudflare Pages + Cloudflare Access หรือเซิร์ฟเวอร์ภายในที่รัน `thaiflood dashboard` ด้วย cron แทน
@@ -121,7 +200,7 @@ thaiflood dashboard --collect               # ดึงข้อมูลให�
 
 ```cron
 5 * * * *    cd /opt/thaiflood && thaiflood collect thaiwater
-*/30 * * * * cd /opt/thaiflood && thaiflood collect bma
+*/15 * * * * cd /opt/thaiflood && thaiflood collect bma
 0 */3 * * *  cd /opt/thaiflood && thaiflood collect onwr tmd
 0 */12 * * * cd /opt/thaiflood && thaiflood collect disaster
 30 9 * * *   cd /opt/thaiflood && thaiflood collect gistda
@@ -156,7 +235,10 @@ thaiflood dashboard --collect               # ดึงข้อมูลให�
 - **endpoint ยังไม่ได้ทดสอบกับเซิร์ฟเวอร์จริง** — สภาพแวดล้อมที่พัฒนาถูกบล็อกไม่ให้ออกไปยังโดเมน `.go.th`/`.or.th`/`thaiwater.net`
   URL และชื่อฟิลด์อ้างอิงจากโครงสร้าง API สาธารณะที่ทราบ ตัว parser เขียนให้ทนต่อชื่อฟิลด์ที่ต่างกันเล็กน้อย
   และทุก URL แก้ได้ผ่าน env โดยไม่ต้องแก้โค้ด ควรรัน `thaiflood -v collect` ครั้งแรกแล้วตรวจ `data/raw/` ว่าได้ข้อมูลจริง
-- ปภ. / สทนช. / กทม. ไม่มี API สาธารณะ — อ่านจากหน้าเว็บ (คัดลิงก์ด้วยคำว่า อุทกภัย/น้ำท่วม/เตือนภัย ฯลฯ)
+- กทม.: ใช้ API ที่หน้า floodbangkok.bangkok.go.th เรียกเอง (`items/sensor_profile` + `items/flood_notification`, ไม่ต้องใช้ key)
+  จุดที่มีแจ้งเตือนภายใน `BMA_ACTIVE_MINUTES` (ค่าเริ่มต้น 60 นาที) ถือว่ายังท่วมตามค่าล่าสุด — เป็น API ไม่เป็นทางการ อาจเปลี่ยนได้;
+  ตั้ง `BMA_API_BASE=` (ค่าว่าง) เพื่อกลับไปอ่านหน้าเว็บตาม `BMA_DDS_URL`
+- ปภ. / สทนช. ไม่มี API สาธารณะ — อ่านจากหน้าเว็บ (คัดลิงก์ด้วยคำว่า อุทกภัย/น้ำท่วม/เตือนภัย ฯลฯ)
   ถ้าหน่วยงานปรับหน้าเว็บ ให้แก้ URL หรือปรับ `find_bulletin_links` / `parse_html_points`
 - แหล่งหนึ่งล่มไม่กระทบแหล่งอื่น — error ถูกบันทึกในตาราง `runs` และแสดงตอน `collect`
 - ใช้ข้อมูลตามเงื่อนไขของแต่ละหน่วยงาน และตั้งรอบดึงให้สุภาพ (ค่าเริ่มต้นไม่ถี่กว่าที่ต้นทางอัปเดต)
@@ -170,6 +252,7 @@ thaiflood/
   storage.py       SQLite + raw files + export CSV
   collector.py     collect() และ run_schedule()
   cli.py           คำสั่ง thaiflood
+  serve.py         thaiflood serve (ดึงตามรอบ + สร้างหน้าเว็บ + HTTP server)
   dashboard.py     สร้าง Interactive HTML (+ dashboard_template.html)
   geo.py           ขอบเขตจังหวัด/ตำบล, หาตำบลจากพิกัด, ย่อรูปทรง
   sources/         adapter ต่อแหล่ง: fetch แยกจาก parse เพื่อทดสอบด้วย fixture ได้
