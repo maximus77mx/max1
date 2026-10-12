@@ -253,7 +253,7 @@ function statusOf(st, value, rawStatus) {
   switch (st.kind) {
     case "waterlevel": return WL_STATUS[rawStatus] || "neutral";
     case "dam_storage": return value == null ? "neutral" : value >= 100 ? "critical" : value >= 80 ? "serious" : value < 30 ? "warning" : "good";
-    case "street_flood": return value == null || value <= 0 ? "good" : value > 20 ? "critical" : value > 10 ? "serious" : "warning";
+    case "street_flood": return value == null ? (/ท่วม/.test(rawStatus || "") ? "warning" : "neutral") : value <= 0 ? "good" : value > 20 ? "critical" : value > 10 ? "serious" : "warning";
     default: return null;
   }
 }
@@ -813,6 +813,9 @@ function renderDetail() {
     facts.push(gap >= 0 ? ["ต่ำกว่าตลิ่ง (ม.)", num(gap, 2)] : ["ล้นตลิ่ง (ม.)", "+" + num(-gap, 2)]);
   }
   if (st.kind === "dam_storage" && ex.storage_mcm != null) facts.push(["ปริมาตร (ล้าน ลบ.ม.)", num(ex.storage_mcm, 0)]);
+  if (st.kind === "street_flood" && ex.highest != null) facts.push(["สูงสุดรอบนี้ (ซม.)", num(ex.highest, 0)]);
+  if (st.kind === "street_flood" && ex.start_flood) facts.push(["เริ่มท่วม", fmtTime(ex.start_flood)]);
+  if (st.kind === "street_flood" && ex.road) facts.push(["สายทาง", esc(ex.road) + (ex.main_road ? " (สายหลัก)" : "")]);
   if (st.kind === "dam_storage" && ex.inflow_mcm != null) facts.push(["ไหลเข้า/ระบาย", `${num(ex.inflow_mcm, 1)} / ${num(ex.released_mcm, 1)}`]);
   el.innerHTML = `<h2>${esc(st.name || st.id)}</h2>
     <div class="where">${esc(K.label)} · ${esc([st.amp, st.prov].filter(Boolean).join(", ") || "ไม่ระบุพื้นที่")} ${status ? " " + badge(status) : ""}</div>

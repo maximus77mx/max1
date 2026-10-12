@@ -232,3 +232,22 @@ def test_gistda_falls_back_to_request_variant_that_returns_data():
     o = agg.observations()[0]
     assert (o.province, o.amphoe, o.name) == ("อุดรธานี", "กุมภวาปี", "กุมภวาปี")
     assert o.value == round(2 * 19855.2 / 1600, 2) and o.extra["building"] == 4
+
+
+def test_bma_api_collect():
+    from thaiflood.sources.bma import BmaSource
+
+    class Session:
+        def __init__(self):
+            self.urls = []
+
+        def get(self, url, params=None, **kw):
+            self.urls.append(url)
+            name = "bma_sensor_profile.json" if url.endswith("/sensor_profile") else "bma_flood_notification.json"
+            return FakeResponse(json.loads((FIX / name).read_text(encoding="utf-8")))
+
+    session = Session()
+    result = BmaSource(Settings(), session=session).collect()
+    assert not result.errors and len(result.observations) == 6
+    assert set(result.raw) == {"sensor_profile.json", "flood_notification.json"}
+    assert all("floodbangkok.bangkok.go.th" in u for u in session.urls)

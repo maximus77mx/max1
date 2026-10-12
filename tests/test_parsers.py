@@ -121,3 +121,22 @@ def test_thaiwater_dam_nested_in_thailand_main():
         "setting": {"scale": []}}, "province": {}}
     obs = parse_dam(payload)
     assert len(obs) == 1 and obs[0].name == "เขื่อนภูมิพล" and obs[0].value == 71.2
+
+
+def test_bma_sensor_api_merges_latest_notification():
+    from datetime import datetime
+
+    from thaiflood.sources.bma import parse_sensor_api
+    from thaiflood.utils import TH_TZ
+
+    profiles, notes = load("bma_sensor_profile.json"), load("bma_flood_notification.json")
+    # 20 นาทีหลังแจ้งเตือนล่าสุดของ FL.WTL.08 (21:35Z = 04:35 น.)
+    now = datetime(2025, 6, 9, 4, 57, tzinfo=TH_TZ)
+    obs = {o.station_id: o for o in parse_sensor_api(profiles, notes, now=now)}
+    assert len(obs) == 6 and obs["FL.WTL.08"].observed_at == "2025-06-09T04:55+07:00"
+    wtl = obs["FL.WTL.08"]
+    assert wtl.value == 5 and wtl.status == "น้ำท่วมขัง" and wtl.extra["highest"] == 20
+    assert wtl.name == "ถ.ลาดพร้าว ช่วง ซ.ลาดพร้าว 110" and wtl.amphoe == "วังทองหลาง" and wtl.lon == 100.61733
+    assert obs["FL.PSC.01"].value == 0 and obs["FL.PSC.01"].status == "ปกติ"  # แจ้งเตือนเก่าเกิน 60 นาที
+    assert obs["FL.BKP.02"].value is None and obs["FL.BKP.02"].status == "อุปกรณ์ขัดข้อง"
+    assert obs["FL.PWT.04"].value is None and obs["FL.PWT.04"].status == "น้ำท่วมขัง"

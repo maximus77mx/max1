@@ -84,6 +84,12 @@ class Settings:
     onwr_url: str = _env("ONWR_URL", "https://www.onwr.go.th/?cat=37")
 
     # --- สำนักการระบายน้ำ กทม. — จุดน้ำท่วมขังรายจุด ---
+    # API ของหน้า floodbangkok.bangkok.go.th (ไม่ต้องใช้ key) — ตั้งเป็นค่าว่างเพื่อกลับไปอ่าน BMA_DDS_URL
+    bma_api_base: str | None = os.environ.get(
+        "BMA_API_BASE", "https://floodbangkok.bangkok.go.th/bkk/dds/services/api/floods/v1/items"
+    ) or None
+    # แจ้งเตือนที่เก่ากว่านี้ (นาที) ถือว่าน้ำลดแล้ว
+    bma_active_minutes: int = int(_env("BMA_ACTIVE_MINUTES", "60"))
     bma_url: str = _env("BMA_DDS_URL", "https://dds.bangkok.go.th/Floodmon/")
 
     # --- กรมอุตุนิยมวิทยา — NWP API (ต้องขอ token ที่ data.tmd.go.th) ---
@@ -133,7 +139,7 @@ class Settings:
 DEFAULT_INTERVALS: dict[str, int] = {
     "thaiwater": 60 * 60,      # รายชั่วโมง
     "tmd": 3 * 60 * 60,        # พยากรณ์อัปเดตทุก ~3 ชม.
-    "bma": 30 * 60,            # จุดน้ำท่วมขัง กทม. เปลี่ยนเร็วช่วงฝนตก
+    "bma": 15 * 60,            # จุดน้ำท่วมขัง กทม. เปลี่ยนเร็วช่วงฝนตก (เซนเซอร์รายงานทุก ~5 นาที)
     "onwr": 3 * 60 * 60,
     "gistda": 12 * 60 * 60,    # ภาพดาวเทียมรายวัน (ข้อมูล 7 วันเป็นแสนรายการ — ไม่ดึงถี่)
     "disaster": 12 * 60 * 60,  # รายงาน ปภ. ออกวันละ 1–2 ครั้ง

@@ -22,7 +22,9 @@ from .utils import now_th
 _EXTRA_KEYS = ("min_bank", "ground_level", "storage_mcm", "inflow_mcm", "released_mcm", "river", "storage_percent",
                # ผลกระทบในพื้นที่ท่วม (GISTDA)
                "cells", "period", "building", "hospital", "school", "length_road", "rice_area", "cassava_area",
-               "maize_area", "sugarcane_area", "para_area", "palm_area", "population", "household")
+               "maize_area", "sugarcane_area", "para_area", "palm_area", "population", "household",
+               # จุดน้ำท่วมขัง กทม.
+               "road", "main_road", "highest", "start_flood")
 
 
 def _latest_geojson(raw_dir: Path | None) -> dict[str, Any] | None:
