@@ -62,6 +62,10 @@ class Settings:
     thaiwater_main_path: str = _env("THAIWATER_MAIN_PATH", "/public/thailand_main")
     # ฐานของลิงก์ภาพที่เป็น path สัมพัทธ์ (ภาพเรดาร์ ฯลฯ)
     thaiwater_media_base: str = _env("THAIWATER_MEDIA_BASE", "https://api-v3.thaiwater.net/")
+    # ภาพ (เรดาร์ ฯลฯ) ที่ API ให้มาเป็น token ใน media_path — {media_path} จะถูกแทนค่า
+    thaiwater_image_url: str = _env(
+        "THAIWATER_IMAGE_URL", "https://api-v3.thaiwater.net/api/v1/thaiwater30/shared/image?image={media_path}"
+    )
     thaiwater_dam_path: str = _env("THAIWATER_DAM_PATH", "/public/dam_daily,/public/dam_load,/public/thailand_main")
     # กราฟย้อนหลังรายสถานี (historical) — {station_id}, {start}, {end} จะถูกแทนค่า
     thaiwater_waterlevel_graph_path: str = _env(

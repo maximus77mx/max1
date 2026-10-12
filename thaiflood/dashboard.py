@@ -47,6 +47,9 @@ def _latest_radar(store: Store) -> list[dict[str, Any]]:
         when = r["published_at"] or r["collected_at"]
         if key not in latest or when > latest[key]["t"]:
             latest[key] = {"title": r["title"], "url": r["url"], "t": when}
+    if latest:  # ตัดสถานีที่ไม่มีภาพใหม่ (เรดาร์ปิด หรือรายการจากรูปแบบลิงก์เก่า)
+        newest = max(datetime.fromisoformat(x["t"]) for x in latest.values())
+        latest = {k: x for k, x in latest.items() if datetime.fromisoformat(x["t"]) >= newest - timedelta(hours=6)}
     return sorted(latest.values(), key=lambda x: x["title"])
 
 
