@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from ..models import CollectResult, Observation
@@ -192,8 +192,11 @@ class BmaSource(Source):
         result.raw["sensor_profile.json"] = profiles
         notifications: Any = []
         try:
+            # ทุกแจ้งเตือนในช่วง active_minutes (จุดที่ท่วมพร้อมกันหลายสิบจุดส่งรวมกันหลายร้อยรายการต่อชั่วโมง)
+            since = datetime.now(timezone.utc) - timedelta(minutes=self.settings.bma_active_minutes)
             notifications = self.get_json(f"{base}/flood_notification", params={
-                "limit": 500, "page": 0, "fields": "*.*", "sort": "-noti_created_at"})
+                "limit": -1, "page": 0, "fields": "*.*", "sort": "-noti_created_at",
+                "filter[noti_created_at][_gte]": since.strftime("%Y-%m-%dT%H:%M:%SZ")})
             result.raw["flood_notification.json"] = notifications
         except Exception as exc:  # ยังได้รายชื่อจุด/สถานะอุปกรณ์ แม้ไม่มีความลึก
             result.errors.append(f"flood_notification: {exc}")

@@ -243,6 +243,8 @@ def test_bma_api_collect():
 
         def get(self, url, params=None, **kw):
             self.urls.append(url)
+            if url.endswith("/flood_notification"):
+                assert params["limit"] == -1 and params["filter[noti_created_at][_gte]"].endswith("Z")
             name = "bma_sensor_profile.json" if url.endswith("/sensor_profile") else "bma_flood_notification.json"
             return FakeResponse(json.loads((FIX / name).read_text(encoding="utf-8")))
 
