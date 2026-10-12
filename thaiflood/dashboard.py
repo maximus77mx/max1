@@ -16,7 +16,7 @@ from typing import Any
 from .config import Settings
 from .geo import TambonIndex, ensure_boundaries, province_layer, tambon_code_for, write_tambon_layers
 from .storage import Store
-from .utils import now_th
+from .utils import TH_TZ, now_th
 
 # ฟิลด์ใน extra ที่หน้า dashboard ใช้ (ตัดที่เหลือทิ้งเพื่อให้ไฟล์เล็ก)
 _EXTRA_KEYS = ("min_bank", "ground_level", "storage_mcm", "inflow_mcm", "released_mcm", "river", "storage_percent",
@@ -39,18 +39,31 @@ def _latest_geojson(raw_dir: Path | None) -> dict[str, Any] | None:
         return None
 
 
+def _parse_time(value: Any) -> datetime | None:
+    try:
+        dt = datetime.fromisoformat(str(value))
+    except (TypeError, ValueError):
+        return None
+    return dt if dt.tzinfo else dt.replace(tzinfo=TH_TZ)
+
+
 def _latest_radar(store: Store) -> list[dict[str, Any]]:
-    """ภาพเรดาร์ล่าสุดของแต่ละสถานี (ชื่อเดียวกัน = สถานีเดียวกัน)"""
+    """ภาพเรดาร์ล่าสุดของแต่ละสถานี (ชื่อเดียวกัน = สถานีเดียวกัน)
+
+    ข้ามรายการที่เวลาอ่านไม่ได้ (เช่นข้อมูลจากรูปแบบลิงก์เก่า) และสถานีที่ภาพเก่ากว่าภาพล่าสุดเกิน 6 ชม. (เรดาร์ปิด)
+    """
     latest: dict[str, dict[str, Any]] = {}
     for r in store.query_reports(kind="radar_image", limit=500):
+        when = _parse_time(r["published_at"] or r["collected_at"])
+        if when is None:
+            continue
         key = r["title"]
-        when = r["published_at"] or r["collected_at"]
-        if key not in latest or when > latest[key]["t"]:
-            latest[key] = {"title": r["title"], "url": r["url"], "t": when}
-    if latest:  # ตัดสถานีที่ไม่มีภาพใหม่ (เรดาร์ปิด หรือรายการจากรูปแบบลิงก์เก่า)
-        newest = max(datetime.fromisoformat(x["t"]) for x in latest.values())
-        latest = {k: x for k, x in latest.items() if datetime.fromisoformat(x["t"]) >= newest - timedelta(hours=6)}
-    return sorted(latest.values(), key=lambda x: x["title"])
+        if key not in latest or when > latest[key]["when"]:
+            latest[key] = {"title": r["title"], "url": r["url"], "t": when.isoformat(), "when": when}
+    if latest:
+        newest = max(x["when"] for x in latest.values())
+        latest = {k: x for k, x in latest.items() if x["when"] >= newest - timedelta(hours=6)}
+    return sorted(({k: v for k, v in x.items() if k != "when"} for x in latest.values()), key=lambda x: x["title"])
 
 
 def map_config(settings: Settings) -> dict[str, Any]:

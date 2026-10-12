@@ -60,3 +60,22 @@ def test_map_config_only_when_configured(tmp_path):
         cfg = build_payload(store, settings=s)["map"]
     assert cfg["sphere"]["key"] == "abc" and "{layer}" in cfg["sphere"]["url"]
     assert cfg["flood_wms"]["url"] == "https://example/wms"
+
+
+def test_latest_radar_skips_unparseable_and_stale_entries(tmp_path):
+    from thaiflood.dashboard import _latest_radar
+    from thaiflood.models import CollectResult, Report
+    from thaiflood.storage import Store
+
+    def radar(title, url, at):
+        return Report("thaiwater", "radar_image", title, url, published_at=at)
+
+    with Store(tmp_path / "db.sqlite3") as store:
+        store.save(CollectResult("thaiwater", reports=[
+            radar("เรดาร์ cri240", "https://x/old.jpg", "UTC"),  # รูปแบบเก่าที่บันทึกเวลาผิด
+            radar("เรดาร์เชียงราย", "https://x/a.jpg", "2026-10-12T09:00+07:00"),
+            radar("เรดาร์เชียงราย", "https://x/b.jpg", "2026-10-12T09:10+07:00"),
+            radar("เรดาร์ปิดซ่อม", "https://x/c.jpg", "2019-03-16T22:00+07:00"),
+        ]))
+        out = _latest_radar(store)
+    assert [(r["title"], r["url"]) for r in out] == [("เรดาร์เชียงราย", "https://x/b.jpg")]
