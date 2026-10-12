@@ -6,13 +6,16 @@
 
 from __future__ import annotations
 
+import json
 import logging
+import re
+from datetime import datetime, timezone
 from typing import Any
 
 from urllib.parse import urljoin
 
 from ..models import CollectResult, Observation, Report
-from ..utils import dig, th, to_float, to_iso
+from ..utils import TH_TZ, dig, th, to_float, to_iso
 from .base import Source
 
 log = logging.getLogger("thaiflood")
@@ -170,9 +173,25 @@ def _is_image(value: Any) -> bool:
     return isinstance(value, str) and value.split("?")[0].lower().endswith(_IMG_EXT)
 
 
+_FILE_STAMP = re.compile(r"_(\d{12})(?:\D|$)")
+
+
+def _stamp_from_name(url: str) -> str | None:
+    """เวลาจากชื่อไฟล์ เช่น cri240_202610120045.jpg (เวลา UTC ตามที่ ThaiWater ระบุ)"""
+    m = _FILE_STAMP.search(url.rsplit("/", 1)[-1])
+    if not m:
+        return None
+    try:
+        dt = datetime.strptime(m.group(1), "%Y%m%d%H%M").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+    return dt.astimezone(TH_TZ).isoformat(timespec="minutes")
+
+
 def parse_radar(payload: Any, media_base: str) -> list[Report]:
     """หาภาพเรดาร์ในส่วน "radar" ของ thailand_main — ไม่ผูกกับชื่อฟิลด์ตายตัว:
-    เดินทุก dict ที่มีค่าเป็นลิงก์ภาพ แล้วใช้ฟิลด์ชื่อ/เวลาที่อยู่ข้างกัน"""
+    เดินทุก dict ที่มีค่าเป็นลิงก์ภาพ แล้วใช้ฟิลด์ชื่อ/เวลา/โฟลเดอร์ที่อยู่ข้างกัน
+    (ข้ามภาพย่อ thumb-*; ค่าที่เป็นแค่ชื่อไฟล์จะต่อกับฟิลด์ path ข้างกัน ถ้ามี)"""
     root = payload.get("radar", payload) if isinstance(payload, dict) else payload
     out: list[Report] = []
     seen: set[str] = set()
@@ -188,35 +207,58 @@ def parse_radar(payload: Any, media_base: str) -> list[Report]:
     def time_of(d: dict[str, Any]) -> str | None:
         for k, v in d.items():
             if any(w in k.lower() for w in ("datetime", "date", "time")) and isinstance(v, (str, int, float)) and not _is_image(v):
-                return to_iso(v)
+                iso = to_iso(v)
+                if iso and iso[:4].isdigit():  # ข้ามค่าที่ไม่ใช่เวลา เช่น timezone "UTC"
+                    return iso
         return None
+
+    def folder_of(d: dict[str, Any]) -> str | None:
+        for k, v in d.items():
+            if (isinstance(v, str) and "/" in v and not _is_image(v)
+                    and any(w in k.lower() for w in ("path", "dir", "folder", "url", "media"))):
+                return v.rstrip("/") + "/"
+        return None
+
+    def add(value: str, node: dict[str, Any] | None, label: str | None) -> None:
+        name = value.split("?")[0].rsplit("/", 1)[-1].lower()
+        if name.startswith("thumb"):
+            return
+        base = media_base
+        if "/" not in value and node is not None:
+            base = urljoin(media_base, folder_of(node) or "")
+        url = urljoin(base, value)
+        if url in seen:
+            return
+        seen.add(url)
+        out.append(Report(source="thaiwater", kind="radar_image", title=f"เรดาร์ {label or len(out) + 1}",
+                          url=url, published_at=(time_of(node) if node else None) or _stamp_from_name(url)))
 
     def walk(node: Any, parent_label: str | None) -> None:
         if isinstance(node, dict):
             label = label_of(node) or parent_label
             for k, v in node.items():
                 if _is_image(v):
-                    url = urljoin(media_base, v)
-                    if url not in seen:
-                        seen.add(url)
-                        title = label or k
-                        out.append(Report(source="thaiwater", kind="radar_image", title=f"เรดาร์ {title}",
-                                          url=url, published_at=time_of(node)))
+                    add(v, node, label or k)
                 else:
                     walk(v, label)
         elif isinstance(node, list):
             for item in node:
                 if _is_image(item):
-                    url = urljoin(media_base, item)
-                    if url not in seen:
-                        seen.add(url)
-                        out.append(Report(source="thaiwater", kind="radar_image",
-                                          title=f"เรดาร์ {parent_label or len(out) + 1}", url=url))
+                    add(item, None, parent_label)
                 else:
                     walk(item, parent_label)
 
     walk(root, None)
     return out
+
+
+def _first_item(node: Any) -> Any:
+    """ตัวอย่างรายการแรกที่เป็น dict — ใช้ log โครงสร้างจริงของข้อมูลเรดาร์"""
+    while isinstance(node, dict) and "data" in node and not any(_is_image(v) for v in node.values()):
+        node = node["data"]
+    if isinstance(node, list) and node:
+        return node[0]
+    return node
 
 
 class ThaiWaterSource(Source):
@@ -266,7 +308,8 @@ class ThaiWaterSource(Source):
         try:
             main = cache[path] if path in cache else self.get_json(self._url(path))
             radar = main.get("radar") if isinstance(main, dict) else None
-            log.info("thaiwater radar: %s", _describe(radar))
+            log.info("thaiwater radar: %s ตัวอย่าง=%s", _describe(radar),
+                     json.dumps(_first_item(radar), ensure_ascii=False, default=str)[:800])
             reports = parse_radar(main, self.settings.thaiwater_media_base)
             if reports:
                 result.reports.extend(reports)

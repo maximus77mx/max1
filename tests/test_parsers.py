@@ -140,3 +140,19 @@ def test_bma_sensor_api_merges_latest_notification():
     assert obs["FL.PSC.01"].value == 0 and obs["FL.PSC.01"].status == "ปกติ"  # แจ้งเตือนเก่าเกิน 60 นาที
     assert obs["FL.BKP.02"].value is None and obs["FL.BKP.02"].status == "อุปกรณ์ขัดข้อง"
     assert obs["FL.PWT.04"].value is None and obs["FL.PWT.04"].status == "น้ำท่วมขัง"
+
+
+def test_radar_bare_filenames_join_folder_and_skip_thumbs():
+    from thaiflood.sources.thaiwater import parse_radar
+
+    payload = {"radar": {"data": {"result": "OK", "data": [
+        {"radar_type": "cri240", "timezone": "UTC", "media_path": "product/radar/cri/2026/10/12",
+         "filename": "cri240_202610120045.jpg", "thumbnail": "thumb-cri240_202610120045.jpg"},
+        {"radar_type": "lmp240", "timezone": "UTC", "image": "lmp240_202610120045.jpg"},
+    ]}}}
+    reports = parse_radar(payload, "https://api-v3.thaiwater.net/")
+    assert [r.url for r in reports] == [
+        "https://api-v3.thaiwater.net/product/radar/cri/2026/10/12/cri240_202610120045.jpg",
+        "https://api-v3.thaiwater.net/lmp240_202610120045.jpg",
+    ]
+    assert reports[0].title == "เรดาร์ cri240" and reports[0].published_at == "2026-10-12T07:45+07:00"
