@@ -156,3 +156,16 @@ def test_radar_bare_filenames_join_folder_and_skip_thumbs():
         "https://api-v3.thaiwater.net/lmp240_202610120045.jpg",
     ]
     assert reports[0].title == "เรดาร์ cri240" and reports[0].published_at == "2026-10-12T07:45+07:00"
+
+
+def test_radar_real_payload_uses_media_token_and_drops_stale_stations():
+    from thaiflood.sources.thaiwater import parse_radar
+
+    url = "https://api-v3.thaiwater.net/api/v1/thaiwater30/shared/image?image={media_path}"
+    reports = parse_radar(load("thaiwater_radar_real.json"), "https://api-v3.thaiwater.net/", url)
+    by_title = {r.title: r for r in reports}
+    cri = by_title["เรดาร์เชียงราย รัศมี 240 กม."]
+    assert cri.url.startswith("https://api-v3.thaiwater.net/api/v1/thaiwater30/shared/image?image=AAECAwQF")
+    assert cri.published_at == "2026-10-12T09:00+07:00" and cri.metrics == {"radar_type": "cri240", "agency": "tmd"}
+    assert 20 <= len(reports) < 38  # สถานีที่ภาพค้างตั้งแต่ปีก่อน ๆ ถูกตัดออก
+    assert all(r.published_at >= "2026-10-12T03" for r in reports)

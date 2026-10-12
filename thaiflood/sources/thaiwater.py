@@ -9,10 +9,10 @@ from __future__ import annotations
 import json
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from urllib.parse import urljoin
+from urllib.parse import quote, urljoin
 
 from ..models import CollectResult, Observation, Report
 from ..utils import TH_TZ, dig, th, to_float, to_iso
@@ -188,7 +188,61 @@ def _stamp_from_name(url: str) -> str | None:
     return dt.astimezone(TH_TZ).isoformat(timespec="minutes")
 
 
-def parse_radar(payload: Any, media_base: str) -> list[Report]:
+def _media_item(node: dict[str, Any], image_url: str) -> Report | None:
+    """รายการสื่อแบบ ThaiWater: filename + media_path (token เข้ารหัส) → ลิงก์ภาพผ่าน shared/image"""
+    token, filename = node.get("media_path"), node.get("filename")
+    if not (isinstance(token, str) and token and "/" not in token and not _is_image(token) and _is_image(filename)):
+        return None
+    when = None
+    raw_time = node.get("media_datetime")
+    if isinstance(raw_time, str) and raw_time.strip():
+        try:
+            dt = datetime.strptime(raw_time.strip()[:16], "%Y-%m-%d %H:%M")
+            tz = timezone.utc if str(node.get("timezone", "")).upper() == "UTC" else TH_TZ
+            when = dt.replace(tzinfo=tz).astimezone(TH_TZ).isoformat(timespec="minutes")
+        except ValueError:
+            when = None
+    name = th(node.get("radar_name")) or node.get("radar_type") or filename
+    return Report(source="thaiwater", kind="radar_image", title=str(name).strip(),
+                  url=image_url.format(media_path=quote(token, safe="")),
+                  published_at=when or _stamp_from_name(filename),
+                  metrics={k: node[k] for k in ("radar_type", "agency") if node.get(k)})
+
+
+def parse_radar(payload: Any, media_base: str, image_url: str | None = None,
+                max_lag_hours: float = 6) -> list[Report]:
+    """ภาพเรดาร์ทุกสถานีจาก thailand_main.radar
+
+    รูปแบบจริงของ ThaiWater: รายการละสถานี มี radar_name, media_datetime (+timezone), filename
+    และ media_path ที่เป็น token — ภาพเปิดได้ทาง image_url ({media_path})
+    สถานีที่ภาพเก่ากว่าภาพล่าสุดเกิน max_lag_hours (เรดาร์ปิดซ่อม) จะถูกตัดออก
+    """
+    if image_url:
+        items: list[Report] = []
+
+        def collect_items(node: Any) -> None:
+            if isinstance(node, dict):
+                hit = _media_item(node, image_url)
+                if hit:
+                    items.append(hit)
+                    return
+                for v in node.values():
+                    collect_items(v)
+            elif isinstance(node, list):
+                for v in node:
+                    collect_items(v)
+
+        collect_items(payload.get("radar", payload) if isinstance(payload, dict) else payload)
+        if items:
+            times = [datetime.fromisoformat(r.published_at) for r in items if r.published_at]
+            if times:
+                cutoff = max(times) - timedelta(hours=max_lag_hours)
+                items = [r for r in items if r.published_at and datetime.fromisoformat(r.published_at) >= cutoff]
+            return items
+    return _parse_radar_links(payload, media_base)
+
+
+def _parse_radar_links(payload: Any, media_base: str) -> list[Report]:
     """หาภาพเรดาร์ในส่วน "radar" ของ thailand_main — ไม่ผูกกับชื่อฟิลด์ตายตัว:
     เดินทุก dict ที่มีค่าเป็นลิงก์ภาพ แล้วใช้ฟิลด์ชื่อ/เวลา/โฟลเดอร์ที่อยู่ข้างกัน
     (ข้ามภาพย่อ thumb-*; ค่าที่เป็นแค่ชื่อไฟล์จะต่อกับฟิลด์ path ข้างกัน ถ้ามี)"""
@@ -310,7 +364,7 @@ class ThaiWaterSource(Source):
             radar = main.get("radar") if isinstance(main, dict) else None
             log.info("thaiwater radar: %s ตัวอย่าง=%s", _describe(radar),
                      json.dumps(_first_item(radar), ensure_ascii=False, default=str)[:800])
-            reports = parse_radar(main, self.settings.thaiwater_media_base)
+            reports = parse_radar(main, self.settings.thaiwater_media_base, self.settings.thaiwater_image_url)
             if reports:
                 result.reports.extend(reports)
                 log.info("thaiwater radar: %d ภาพ เช่น %s", len(reports), [(r.title, r.url, r.published_at) for r in reports[:3]])
