@@ -100,6 +100,16 @@ button:hover, select:hover { border-color: var(--text-muted); }
 .stlist { display: grid; gap: 4px; margin-top: 6px; }
 .stlist button { display: flex; justify-content: space-between; gap: 8px; text-align: left; min-height: 0; padding: 6px 8px; font-size: 13px; }
 .stlist .v { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.help { display: grid; gap: 4px; margin-top: 6px; }
+.help .item { display: flex; justify-content: space-between; gap: 8px; align-items: center; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; }
+.help .item .nm { min-width: 0; }
+.help .item .sub { color: var(--text-muted); font-size: 12px; }
+.help .acts { display: flex; gap: 6px; flex-shrink: 0; }
+.help .acts a { font-size: 12px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); text-decoration: none; color: var(--text-primary); white-space: nowrap; }
+.help .acts a.tel { background: var(--accent); border-color: var(--accent); color: var(--surface-1); font-weight: 600; font-variant-numeric: tabular-nums; }
+.hotlines { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.hotlines a { display: inline-flex; gap: 6px; align-items: baseline; padding: 4px 8px; border: 1px solid var(--border); border-radius: 999px; font-size: 12px; text-decoration: none; color: var(--text-secondary); }
+.hotlines a b { color: var(--text-primary); font-size: 13px; font-variant-numeric: tabular-nums; }
 .panel h3 { font-size: 13px; font-weight: 500; color: var(--text-secondary); margin: 12px 0 0; }
 .panel .where { color: var(--text-secondary); font-size: 13px; }
 .panel .now { display: flex; gap: 16px; flex-wrap: wrap; margin: 10px 0; }
@@ -707,7 +717,7 @@ function drawChart(el, pts, { unit, fmt = 1, bars = false, refs = [], color = "v
 
 // ---------- แผงรายละเอียด ----------
 function select(key, fromMap) {
-  S.selected = key; S.tambon = null; clearPoint();
+  S.selected = key; S.tambon = null; clearPoint(); clearHelpLayer(); helpToken++;
   renderDetail();
   document.querySelectorAll("tbody tr.sel").forEach(tr => tr.classList.remove("sel"));
   const tr = document.querySelector(`tbody tr[data-k="${CSS.escape(key)}"]`);
@@ -790,8 +800,10 @@ function renderTambonDetail(el) {
     <h3>สถานีในตำบล (${inside.length})</h3>
     <div class="stlist">${inside.length ? inside.map(r => stationButton(r)).join("") : '<div class="where">ไม่มีสถานีตรวจวัดในตำบลนี้</div>'}</div>
     ${near.length ? `<h3>${pt ? "สถานีใกล้จุดนี้" : "สถานีใกล้เคียง"} (ไม่เกิน 25 กม.)</h3><div class="stlist">${near.map(x => stationButton(x.r, ` · ${num(x.d, 1)} กม.`)).join("")}</div>` : (c ? "" : '<h3>สถานีใกล้เคียง</h3><div class="where">กำลังโหลดขอบเขตตำบล…</div>')}
-    <div class="where" style="margin-top:10px">ข้อมูลตามตัวกรองช่วงเวลาปัจจุบัน · คลิกสถานีเพื่อดูกราฟย้อนหลัง</div>`;
+    <div class="where" style="margin-top:10px">ข้อมูลตามตัวกรองช่วงเวลาปัจจุบัน · คลิกสถานีเพื่อดูกราฟย้อนหลัง</div>
+    <div id="helpBox"></div>`;
   el.querySelectorAll(".stlist button[data-k]").forEach(b => b.addEventListener("click", () => select(b.dataset.k)));
+  if (c) fillHelp(c.lat, c.lng, meta?.p);
 }
 function renderDetail() {
   const el = $("#detail");
@@ -1048,8 +1060,61 @@ function renderPointDetail(el) {
     <div class="now"><div>ฝน 24 ชม. ประมาณการ (มม.)<strong>${est ? "~" + num(est.v, 1) : "–"}</strong></div></div>
     ${est ? `<div class="where">ประมาณจาก ${est.n} สถานีวัดฝนในรัศมี ~40 กม.</div>` : ""}
     <h3>สถานีใกล้จุดนี้ (ไม่เกิน 25 กม.)</h3>
-    <div class="stlist">${near.length ? near.map(x => stationButton(x.r, ` · ${num(x.d, 1)} กม.`)).join("") : '<div class="where">ไม่มีสถานีในรัศมี 25 กม.</div>'}</div>`;
+    <div class="stlist">${near.length ? near.map(x => stationButton(x.r, ` · ${num(x.d, 1)} กม.`)).join("") : '<div class="where">ไม่มีสถานีในรัศมี 25 กม.</div>'}</div>
+    <div id="helpBox"></div>`;
   el.querySelectorAll(".stlist button[data-k]").forEach(b => b.addEventListener("click", () => select(b.dataset.k)));
+  if (!pt.loading) fillHelp(pt.lat, pt.lon, pt.prov);
+}
+// ---------- เบอร์ฉุกเฉิน + สถานที่ช่วยเหลือใกล้จุด ----------
+const HOTLINES = [
+  ["1784", "ปภ. สายด่วนนิรภัย"], ["1669", "เจ็บป่วยฉุกเฉิน"], ["191", "ตำรวจ"], ["199", "ดับเพลิง/กู้ภัย"],
+  ["1193", "ตำรวจทางหลวง"], ["1586", "กรมทางหลวง"], ["1146", "ทางหลวงชนบท"], ["1300", "ศูนย์ช่วยเหลือสังคม"],
+];
+const MEA_PROVS = ["กรุงเทพมหานคร", "นนทบุรี", "สมุทรปราการ"];
+function hotlinesFor(prov) {
+  const extra = prov === "กรุงเทพมหานคร" ? [["1555", "กทม."]] : [];
+  const power = MEA_PROVS.includes(prov) ? [["1130", "การไฟฟ้านครหลวง"]] : prov ? [["1129", "การไฟฟ้าส่วนภูมิภาค"]] : [];
+  return [...extra, ...HOTLINES, ...power];
+}
+const POI_KIND = { h: ["โรงพยาบาล", 3], p: ["สถานีตำรวจ", 3], f: ["สถานีดับเพลิง", 2] };
+let poiPromise = null, helpToken = 0, helpLayer = null;
+function loadPois() {
+  if (!DATA.poi_url) return Promise.resolve([]);
+  return poiPromise ||= fetch(DATA.poi_url).then(r => r.ok ? r.json() : []).catch(() => []);
+}
+const telHref = t => "tel:" + String(t).replace(/[^\d+]/g, "");
+const mapsDir = (la, lo) => `https://www.google.com/maps/dir/?api=1&destination=${la},${lo}`;
+const mapsSearch = (name, la, lo) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(name || `${la},${lo}`)}`;
+function clearHelpLayer() { if (helpLayer) { helpLayer.remove(); helpLayer = null; } }
+// เติมกล่อง #helpBox ในแผงรายละเอียด: เบอร์สายด่วน + โรงพยาบาล/ตำรวจ/ดับเพลิงที่ใกล้ (lat, lon) ที่สุด
+async function fillHelp(lat, lon, prov) {
+  const token = ++helpToken;
+  const hot = `<h3>เบอร์สายด่วน</h3><div class="hotlines">${hotlinesFor(prov).map(([n, label]) =>
+    `<a href="tel:${n}" title="โทร ${n}"><b>${n}</b>${esc(label)}</a>`).join("")}</div>`;
+  const box = () => document.getElementById("helpBox");
+  if (box()) box().innerHTML = hot + (DATA.poi_url ? '<div class="where" style="margin-top:8px">กำลังหาโรงพยาบาล/สถานีตำรวจใกล้เคียง…</div>' : "");
+  const pois = await loadPois();
+  if (token !== helpToken || !box()) return;
+  clearHelpLayer();
+  if (!pois.length) { box().innerHTML = hot; return; }
+  const near = Object.fromEntries(Object.keys(POI_KIND).map(k => [k, []]));
+  for (const [k, n, la, lo, tel] of pois) {
+    if (!near[k] || Math.abs(la - lat) > 0.5 || Math.abs(lo - lon) > 0.5) continue; // ~50 กม. กรองหยาบก่อน
+    const d = haversineKm(lat, lon, la, lo);
+    if (d <= 40) near[k].push({ k, n, la, lo, tel, d });
+  }
+  const sections = Object.entries(POI_KIND).map(([k, [label, max]]) => {
+    const list = near[k].sort((a, b) => a.d - b.d).slice(0, max);
+    return { k, label, list };
+  });
+  if (map) helpLayer = L.layerGroup(sections.flatMap(s => s.list.map(x =>
+    L.circleMarker([x.la, x.lo], { radius: 6, color: css("--surface-1"), weight: 2, fillColor: x.k === "h" ? css("--critical") : x.k === "p" ? css("--accent") : css("--serious"), fillOpacity: 1 })
+      .bindTooltip(`${esc(POI_KIND[x.k][0])}: ${esc(x.n || "ไม่มีชื่อ")}${x.tel ? "<br>โทร " + esc(x.tel) : ""}`)))).addTo(map);
+  box().innerHTML = hot + sections.map(({ label, list }) => `<h3>${label}ใกล้ที่สุด</h3><div class="help">${list.length ? list.map(x => `
+      <div class="item"><div class="nm">${esc(x.n || label + " (ไม่มีชื่อ)")}<div class="sub">${num(x.d, 1)} กม.${x.tel ? "" : " · ไม่มีเบอร์ในฐานข้อมูล"}</div></div>
+      <div class="acts">${x.tel ? `<a class="tel" href="${telHref(x.tel)}">${esc(x.tel)}</a>` : `<a href="${mapsSearch(x.n, x.la, x.lo)}" target="_blank" rel="noopener">หาเบอร์</a>`}<a href="${mapsDir(x.la, x.lo)}" target="_blank" rel="noopener">นำทาง</a></div></div>`).join("")
+    : '<div class="where">ไม่พบในรัศมี 40 กม.</div>'}</div>`).join("") +
+    '<div class="where" style="margin-top:8px">ข้อมูลสถานที่และเบอร์โทรจาก OpenStreetMap อาจไม่ครบหรือไม่เป็นปัจจุบัน — กรณีฉุกเฉินโทรสายด่วนด้านบน</div>';
 }
 function ensureProvinceOption(p) {
   const sel = $("#province");
