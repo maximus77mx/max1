@@ -35,9 +35,11 @@ def test_ensure_pois_caches_and_falls_back(tmp_path):
     class Ok:
         calls = 0
 
-        def post(self, url, data=None, timeout=None):
+        def post(self, url, data=None, headers=None, timeout=None):
             Ok.calls += 1
-            assert "amenity" in data["data"]
+            assert "amenity" in data["data"] and headers["User-Agent"]
+            if "first" in url:
+                raise ConnectionError("406")  # server แรกปฏิเสธ — ต้องลองตัวถัดไป
             return Resp()
 
     class Down:
@@ -45,8 +47,8 @@ def test_ensure_pois_caches_and_falls_back(tmp_path):
             raise ConnectionError("blocked")
 
     assert ensure_pois(tmp_path, "http://x", session=Down()) == []  # ไม่มีเน็ต + ไม่มีไฟล์เดิม
-    assert len(ensure_pois(tmp_path, "http://x", session=Ok())) == 3
-    assert len(ensure_pois(tmp_path, "http://x", session=Ok())) == 3 and Ok.calls == 1  # ยังไม่เก่า ใช้ไฟล์เดิม
+    assert len(ensure_pois(tmp_path, "http://first, http://second", session=Ok())) == 3 and Ok.calls == 2
+    assert len(ensure_pois(tmp_path, "http://x", session=Ok())) == 3 and Ok.calls == 2  # ยังไม่เก่า ใช้ไฟล์เดิม
     cache = tmp_path / "boundaries" / "poi.json"
     old = time.time() - 40 * 86400
     os.utime(cache, (old, old))

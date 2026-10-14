@@ -56,25 +56,33 @@ def parse_overpass(payload: dict[str, Any]) -> list[list[Any]]:
 
 
 def ensure_pois(data_dir: Path, url: str, max_age_days: float = 30, session: Any = None,
-                timeout: float = 300) -> list[list[Any]]:
-    """คืนรายการสถานที่ช่วยเหลือ — ใช้ไฟล์เก็บไว้ถ้ายังไม่เก่า ดึงใหม่ไม่ได้ก็ใช้ของเดิม ไม่มีเลยคืนรายการว่าง"""
+                timeout: float = 300, user_agent: str = "thaiflood-collector") -> list[list[Any]]:
+    """คืนรายการสถานที่ช่วยเหลือ — ใช้ไฟล์เก็บไว้ถ้ายังไม่เก่า ดึงใหม่ไม่ได้ก็ใช้ของเดิม ไม่มีเลยคืนรายการว่าง
+
+    url คั่นหลาย server ด้วย , ได้ (ลองตามลำดับ) — Overpass ปฏิเสธคำขอที่ไม่ระบุ User-Agent (406)
+    """
     cache = data_dir / "boundaries" / "poi.json"
     fresh = cache.exists() and time.time() - cache.stat().st_mtime < max_age_days * 86400
     if not fresh:
-        try:
-            resp = (session or requests).post(url, data={"data": QUERY}, timeout=timeout)
-            resp.raise_for_status()
-            rows = parse_overpass(resp.json())
-            if not rows:
-                raise ValueError("Overpass ไม่คืนข้อมูล")
+        errors = []
+        headers = {"User-Agent": user_agent, "Accept": "application/json"}
+        for endpoint in [u.strip() for u in url.split(",") if u.strip()]:
+            try:
+                resp = (session or requests).post(endpoint, data={"data": QUERY}, headers=headers, timeout=timeout)
+                resp.raise_for_status()
+                rows = parse_overpass(resp.json())
+                if not rows:
+                    raise ValueError("ไม่คืนข้อมูล")
+            except Exception as exc:  # server ไม่ว่าง/ปฏิเสธ — ลองตัวถัดไป
+                errors.append(f"{endpoint}: {exc}")
+                continue
             cache.parent.mkdir(parents=True, exist_ok=True)
             tmp = cache.with_suffix(".part")
             tmp.write_text(json.dumps(rows, ensure_ascii=False), encoding="utf-8")
             tmp.replace(cache)
-            log.info("poi: %d แห่ง (โรงพยาบาล/ตำรวจ/ดับเพลิง) จาก OpenStreetMap", len(rows))
+            log.info("poi: %d แห่ง (โรงพยาบาล/ตำรวจ/ดับเพลิง) จาก OpenStreetMap (%s)", len(rows), endpoint)
             return rows
-        except Exception as exc:  # เน็ตถูกบล็อก/Overpass ไม่ว่าง — ใช้ไฟล์เดิมถ้ามี
-            log.warning("poi: ดึงจาก Overpass ไม่ได้ (%s)%s", exc, " — ใช้ไฟล์เดิม" if cache.exists() else "")
+        log.warning("poi: ดึงจาก Overpass ไม่ได้ (%s)%s", " | ".join(errors), " — ใช้ไฟล์เดิม" if cache.exists() else "")
     if cache.exists():
         return json.loads(cache.read_text(encoding="utf-8"))
     return []

@@ -175,7 +175,8 @@ def write_dashboard(store: Store, output: Path, geo: bool = True, **kwargs: Any)
         except Exception as exc:  # ไม่มีเน็ต/URL เปลี่ยน — ยังสร้างหน้าได้ แค่ไม่มีแผนที่รายพื้นที่
             print(f"ข้ามแผนที่รายตำบล: {exc}")
         # โรงพยาบาล/ตำรวจ/ดับเพลิงใกล้จุด — ไม่มีก็ยังแสดงเบอร์สายด่วนได้
-        if write_poi_layer(ensure_pois(settings.data_dir, settings.overpass_url, settings.poi_max_age_days),
+        if write_poi_layer(ensure_pois(settings.data_dir, settings.overpass_url, settings.poi_max_age_days,
+                                       user_agent=settings.user_agent),
                            output.parent / "geo"):
             kwargs["poi_url"] = "geo/poi.json"
     payload = build_payload(store, **kwargs)
