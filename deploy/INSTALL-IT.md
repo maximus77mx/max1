@@ -28,6 +28,7 @@ floodbangkok.bangkok.go.th           กทม. เซนเซอร์น้�
 www.disaster.go.th, www.onwr.go.th   ปภ. / สทนช. (รายงาน/ประกาศ)
 data.tmd.go.th                       กรมอุตุฯ (ถ้ามี token)
 raw.githubusercontent.com            ขอบเขตจังหวัด/ตำบล (ดาวน์โหลดครั้งแรกครั้งเดียว)
+overpass-api.de                      โรงพยาบาล/สถานีตำรวจ/ดับเพลิง จาก OpenStreetMap (เดือนละครั้ง)
 pypi.org, files.pythonhosted.org     ตอนติดตั้ง package
 ```
 

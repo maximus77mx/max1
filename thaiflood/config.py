@@ -122,6 +122,10 @@ class Settings:
         "https://raw.githubusercontent.com/chingchai/OpenGISData-Thailand/master/provinces.geojson",
     )
 
+    # สถานที่ช่วยเหลือฉุกเฉิน (โรงพยาบาล/ตำรวจ/ดับเพลิง) จาก OpenStreetMap — ดึงใหม่ทุก POI_MAX_AGE_DAYS วัน
+    overpass_url: str = _env("OVERPASS_URL", "https://overpass-api.de/api/interpreter")
+    poi_max_age_days: float = float(_env("POI_MAX_AGE_DAYS", "30"))
+
     # จุดพยากรณ์ฝน: "ชื่อ:lat:lon;ชื่อ:lat:lon"
     tmd_points: str = _env(
         "TMD_POINTS",

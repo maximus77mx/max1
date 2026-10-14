@@ -15,6 +15,7 @@ from typing import Any
 
 from .config import Settings
 from .geo import TambonIndex, ensure_boundaries, province_layer, tambon_code_for, write_tambon_layers
+from .poi import ensure_pois, write_poi_layer
 from .storage import Store
 from .utils import TH_TZ, now_th
 
@@ -88,6 +89,7 @@ def build_payload(
     settings: Settings | None = None,
     tambon_index: TambonIndex | None = None,
     province_geo: dict[str, Any] | None = None,
+    poi_url: str | None = None,
 ) -> dict[str, Any]:
     since = (now_th() - timedelta(days=days)).isoformat()
     rows = store.query_observations(since=since, province=province)
@@ -148,6 +150,7 @@ def build_payload(
         "tambon_list": tambon_index.search_list() if tambon_index else [],
         "province_geo": province_geo,
         "geo_base": "geo/" if tambon_index else None,
+        "poi_url": poi_url,
     }
 
 
@@ -171,6 +174,10 @@ def write_dashboard(store: Store, output: Path, geo: bool = True, **kwargs: Any)
             write_tambon_layers(tambon_path, output.parent / "geo")
         except Exception as exc:  # ไม่มีเน็ต/URL เปลี่ยน — ยังสร้างหน้าได้ แค่ไม่มีแผนที่รายพื้นที่
             print(f"ข้ามแผนที่รายตำบล: {exc}")
+        # โรงพยาบาล/ตำรวจ/ดับเพลิงใกล้จุด — ไม่มีก็ยังแสดงเบอร์สายด่วนได้
+        if write_poi_layer(ensure_pois(settings.data_dir, settings.overpass_url, settings.poi_max_age_days),
+                           output.parent / "geo"):
+            kwargs["poi_url"] = "geo/poi.json"
     payload = build_payload(store, **kwargs)
     output.parent.mkdir(parents=True, exist_ok=True)
     # เขียนไฟล์ชั่วคราวแล้วสลับ ให้ web server (IIS/Apache/Nginx) ไม่ส่งหน้าที่เขียนไม่เสร็จให้ผู้ใช้
