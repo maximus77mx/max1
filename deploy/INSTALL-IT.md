@@ -29,6 +29,7 @@ www.disaster.go.th, www.onwr.go.th   ปภ. / สทนช. (รายงาน
 data.tmd.go.th                       กรมอุตุฯ (ถ้ามี token)
 raw.githubusercontent.com            ขอบเขตจังหวัด/ตำบล (ดาวน์โหลดครั้งแรกครั้งเดียว)
 overpass-api.de                      โรงพยาบาล/สถานีตำรวจ/ดับเพลิง จาก OpenStreetMap (เดือนละครั้ง)
+overpass.kumi.systems                  (สำรองของ overpass-api.de)
 pypi.org, files.pythonhosted.org     ตอนติดตั้ง package
 ```
 
