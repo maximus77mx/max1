@@ -1077,17 +1077,22 @@ function renderPointDetail(el) {
   if (!pt.loading) fillHelp(pt.lat, pt.lon, pt.prov);
 }
 // ---------- เบอร์ฉุกเฉิน + สถานที่ช่วยเหลือใกล้จุด ----------
+// ตรวจกับรายการเบอร์ช่วยเหลืออุทกภัยของกรมประชาสัมพันธ์ (prd.go.th) — เพิ่มเฉพาะเบอร์ที่ยืนยันได้
 const HOTLINES = [
   ["1784", "ปภ. สายด่วนนิรภัย"], ["1669", "เจ็บป่วยฉุกเฉิน"], ["191", "ตำรวจ"], ["199", "ดับเพลิง/กู้ภัย"],
+  ["1677", "ร่วมด้วยช่วยกัน"], ["1460", "กรมชลประทาน (น้ำ/เขื่อน)"], ["1182", "กรมอุตุนิยมวิทยา"],
   ["1193", "ตำรวจทางหลวง"], ["1586", "กรมทางหลวง"], ["1146", "ทางหลวงชนบท"], ["1300", "ศูนย์ช่วยเหลือสังคม"],
 ];
 const MEA_PROVS = ["กรุงเทพมหานคร", "นนทบุรี", "สมุทรปราการ"];
 function hotlinesFor(prov) {
-  const extra = prov === "กรุงเทพมหานคร" ? [["1555", "กทม."]] : [];
+  const extra = prov === "กรุงเทพมหานคร" ? [["1555", "กทม."], ["1646", "ศูนย์เอราวัณ กทม."], ["1554", "หน่วยแพทย์กู้ชีวิต วชิรพยาบาล"]] : [];
   const power = MEA_PROVS.includes(prov) ? [["1130", "การไฟฟ้านครหลวง"]] : prov ? [["1129", "การไฟฟ้าส่วนภูมิภาค"]] : [];
   return [...extra, ...HOTLINES, ...power];
 }
-const POI_KIND = { h: ["โรงพยาบาล", 3], p: ["สถานีตำรวจ", 3], f: ["สถานีดับเพลิง", 2] };
+const POI_KIND = {
+  h: ["โรงพยาบาล", 3, "--critical"], c: ["รพ.สต./ศูนย์บริการสาธารณสุข", 2, "--good"],
+  p: ["สถานีตำรวจ", 3, "--accent"], f: ["สถานีดับเพลิง", 2, "--serious"], t: ["ที่ว่าการอำเภอ/สำนักงานเขต/เทศบาล", 2, "--flood"],
+};
 let poiPromise = null, helpToken = 0, helpLayer = null;
 function loadPois() {
   if (!DATA.poi_url) return Promise.resolve([]);
@@ -1119,7 +1124,7 @@ async function fillHelp(lat, lon, prov) {
     return { k, label, list };
   });
   if (map) helpLayer = L.layerGroup(sections.flatMap(s => s.list.map(x =>
-    L.circleMarker([x.la, x.lo], { radius: 6, color: css("--surface-1"), weight: 2, fillColor: x.k === "h" ? css("--critical") : x.k === "p" ? css("--accent") : css("--serious"), fillOpacity: 1 })
+    L.circleMarker([x.la, x.lo], { radius: 6, color: css("--surface-1"), weight: 2, fillColor: css(POI_KIND[x.k][2]), fillOpacity: 1 })
       .bindTooltip(`${esc(POI_KIND[x.k][0])}: ${esc(x.n || "ไม่มีชื่อ")}${x.tel ? "<br>โทร " + esc(x.tel) : ""}`)))).addTo(map);
   box().innerHTML = hot + sections.map(({ label, list }) => `<h3>${label}ใกล้ที่สุด</h3><div class="help">${list.length ? list.map(x => `
       <div class="item"><div class="nm">${esc(x.n || label + " (ไม่มีชื่อ)")}<div class="sub">${num(x.d, 1)} กม.${x.tel ? "" : " · ไม่มีเบอร์ในฐานข้อมูล"}</div></div>

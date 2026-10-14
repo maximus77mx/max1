@@ -12,6 +12,10 @@ PAYLOAD = {"elements": [
     {"type": "node", "id": 3, "lat": 13.75, "lon": 100.52, "tags": {"amenity": "police", "name": "สน.พญาไท", "contact:phone": "02 354 5000"}},
     {"type": "node", "id": 4, "lat": 13.74, "lon": 100.51, "tags": {"amenity": "fire_station"}},
     {"type": "node", "id": 5, "lat": 13.73, "lon": 100.50, "tags": {"amenity": "school", "name": "ไม่เกี่ยว"}},
+    {"type": "node", "id": 6, "lat": 14.1, "lon": 100.6, "tags": {"amenity": "hospital", "name": "โรงพยาบาลส่งเสริมสุขภาพตำบลบ้านนา"}},
+    {"type": "node", "id": 7, "lat": 14.2, "lon": 100.6, "tags": {"amenity": "clinic", "name": "รพ.สต.คลองหนึ่ง", "phone": "02 000 0000"}},
+    {"type": "node", "id": 8, "lat": 14.3, "lon": 100.6, "tags": {"amenity": "clinic", "name": "คลินิกเอกชน"}},
+    {"type": "node", "id": 9, "lat": 14.4, "lon": 100.6, "tags": {"amenity": "townhall", "name": "ที่ว่าการอำเภอคลองหลวง"}},
 ]}
 
 
@@ -21,6 +25,9 @@ def test_parse_overpass_keeps_emergency_places_with_phone():
         ["h", "โรงพยาบาลราชวิถี", 13.7649, 100.5383, "+66 2 206 2900"],
         ["p", "สน.พญาไท", 13.75, 100.52, "02 354 5000"],
         ["f", "", 13.74, 100.51, None],
+        ["c", "โรงพยาบาลส่งเสริมสุขภาพตำบลบ้านนา", 14.1, 100.6, None],
+        ["c", "รพ.สต.คลองหนึ่ง", 14.2, 100.6, "02 000 0000"],
+        ["t", "ที่ว่าการอำเภอคลองหลวง", 14.4, 100.6, None],
     ]
 
 
@@ -47,12 +54,12 @@ def test_ensure_pois_caches_and_falls_back(tmp_path):
             raise ConnectionError("blocked")
 
     assert ensure_pois(tmp_path, "http://x", session=Down()) == []  # ไม่มีเน็ต + ไม่มีไฟล์เดิม
-    assert len(ensure_pois(tmp_path, "http://first, http://second", session=Ok())) == 3 and Ok.calls == 2
-    assert len(ensure_pois(tmp_path, "http://x", session=Ok())) == 3 and Ok.calls == 2  # ยังไม่เก่า ใช้ไฟล์เดิม
-    cache = tmp_path / "boundaries" / "poi.json"
+    assert len(ensure_pois(tmp_path, "http://first, http://second", session=Ok())) == 6 and Ok.calls == 2
+    assert len(ensure_pois(tmp_path, "http://x", session=Ok())) == 6 and Ok.calls == 2  # ยังไม่เก่า ใช้ไฟล์เดิม
+    cache = tmp_path / "boundaries" / "poi_v2.json"
     old = time.time() - 40 * 86400
     os.utime(cache, (old, old))
-    assert len(ensure_pois(tmp_path, "http://x", session=Down())) == 3  # เก่าแต่ดึงใหม่ไม่ได้ — ใช้ของเดิม
+    assert len(ensure_pois(tmp_path, "http://x", session=Down())) == 6  # เก่าแต่ดึงใหม่ไม่ได้ — ใช้ของเดิม
     out = write_poi_layer(json.loads(cache.read_text(encoding="utf-8")), tmp_path / "site" / "geo")
     assert out and json.loads(out.read_text(encoding="utf-8"))[0][1] == "โรงพยาบาลราชวิถี"
     assert write_poi_layer([], tmp_path / "x") is None
