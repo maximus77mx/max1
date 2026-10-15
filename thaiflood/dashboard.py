@@ -25,7 +25,9 @@ _EXTRA_KEYS = ("min_bank", "ground_level", "storage_mcm", "inflow_mcm", "release
                "cells", "period", "building", "hospital", "school", "length_road", "rice_area", "cassava_area",
                "maize_area", "sugarcane_area", "para_area", "palm_area", "population", "household",
                # จุดน้ำท่วมขัง กทม.
-               "road", "main_road", "highest", "start_flood")
+               "road", "main_road", "highest", "start_flood",
+               # แผ่นดินไหว (USGS)
+               "depth_km", "mag_type", "felt", "mmi", "alert", "usgs_url")
 
 
 def _latest_geojson(raw_dir: Path | None) -> dict[str, Any] | None:
@@ -122,6 +124,15 @@ def build_payload(
             if code:
                 st["tc"] = code
                 tambons[code] = tambon_index.meta[code]
+                st.setdefault("prov", tambon_index.meta[code].get("p"))
+                st.setdefault("amp", tambon_index.meta[code].get("a"))
+    # แผ่นดินไหว: เอาเฉพาะศูนย์กลางในประเทศไทย (กรอบที่ดึงมากินพื้นที่ประเทศเพื่อนบ้าน)
+    for key, st in list(stations.items()):
+        if st["kind"] == "earthquake":
+            inside = bool(st.get("tc")) if tambon_index else "thailand" in str(st.get("name", "")).lower()
+            if not inside:
+                del stations[key]
+                series.pop(key, None)
 
     reports = []
     for r in store.query_reports(limit=200, exclude_kind="radar_image"):

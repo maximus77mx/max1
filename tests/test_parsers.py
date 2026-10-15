@@ -169,3 +169,28 @@ def test_radar_real_payload_uses_media_token_and_drops_stale_stations():
     assert cri.published_at == "2026-10-12T09:00+07:00" and cri.metrics == {"radar_type": "cri240", "agency": "tmd"}
     assert 20 <= len(reports) < 38  # สถานีที่ภาพค้างตั้งแต่ปีก่อน ๆ ถูกตัดออก
     assert all(r.published_at >= "2026-10-12T03" for r in reports)
+
+
+def test_usgs_quakes_parse_and_payload_keeps_only_thailand(tmp_path):
+    from thaiflood.dashboard import build_payload
+    from thaiflood.models import CollectResult
+    from thaiflood.sources.usgs import parse_events
+    from thaiflood.storage import Store
+
+    obs = parse_events(load("usgs_events.geojson"))
+    assert [o.station_id for o in obs] == ["us7000test1", "us7000test2"]
+    q = obs[0]
+    assert q.kind == "earthquake" and q.value == 4.6 and q.status == "ปานกลาง"
+    assert (q.lat, q.lon) == (19.79, 99.68) and q.extra["depth_km"] == 10.0 and q.extra["felt"] == 120
+    assert q.observed_at.endswith("+07:00")
+
+    # ไม่มีขอบเขตตำบล: ใช้ชื่อสถานที่ของ USGS คัดเฉพาะเหตุในไทย
+    from datetime import timedelta
+    from thaiflood.utils import now_th
+    for o in obs:
+        o.observed_at = (now_th() - timedelta(hours=1)).isoformat()
+    with Store(tmp_path / "db.sqlite3") as store:
+        store.save(CollectResult("usgs", observations=obs))
+        p = build_payload(store, days=7)
+    quakes = [s for s in p["stations"] if s["kind"] == "earthquake"]
+    assert [s["id"] for s in quakes] == ["us7000test1"] and quakes[0]["extra"]["usgs_url"].startswith("https://")

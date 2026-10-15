@@ -122,6 +122,11 @@ class Settings:
         "https://raw.githubusercontent.com/chingchai/OpenGISData-Thailand/master/provinces.geojson",
     )
 
+    # --- แผ่นดินไหว (USGS FDSN event service — ไม่ต้องใช้ key) ---
+    usgs_event_url: str = _env("USGS_EVENT_URL", "https://earthquake.usgs.gov/fdsnws/event/1/query")
+    quake_days: int = int(_env("QUAKE_DAYS", "30"))
+    quake_min_magnitude: float = float(_env("QUAKE_MIN_MAGNITUDE", "1.5"))
+
     # สถานที่ช่วยเหลือฉุกเฉิน (โรงพยาบาล/ตำรวจ/ดับเพลิง) จาก OpenStreetMap — ดึงใหม่ทุก POI_MAX_AGE_DAYS วัน
     # หลาย server คั่นด้วย , (ลองตามลำดับ)
     overpass_url: str = _env(
@@ -156,4 +161,5 @@ DEFAULT_INTERVALS: dict[str, int] = {
     "onwr": 3 * 60 * 60,
     "gistda": 12 * 60 * 60,    # ภาพดาวเทียมรายวัน (ข้อมูล 7 วันเป็นแสนรายการ — ไม่ดึงถี่)
     "disaster": 12 * 60 * 60,  # รายงาน ปภ. ออกวันละ 1–2 ครั้ง
+    "usgs": 10 * 60,           # แผ่นดินไหว — ข้อมูลเล็ก ดึงบ่อยได้
 }

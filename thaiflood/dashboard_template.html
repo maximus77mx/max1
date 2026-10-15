@@ -234,6 +234,7 @@ html[data-fs="4"] { --fs: 1.45; }
       <button role="tab" data-tab="dam_storage">เขื่อน</button>
       <button role="tab" data-tab="flood_area">พื้นที่ท่วม (ดาวเทียม)</button>
       <button role="tab" data-tab="street_flood">น้ำท่วมขัง กทม.</button>
+      <button role="tab" data-tab="earthquake">แผ่นดินไหว</button>
       <button role="tab" data-tab="radar" id="radarTab" hidden>เรดาร์ฝน</button>
       <button role="tab" data-tab="reports">รายงาน/ประกาศ</button>
       <button role="tab" data-tab="forecast">พยากรณ์ฝน</button>
@@ -253,6 +254,7 @@ const KINDS = {
   flood_area:   { label: "พื้นที่ท่วม",          unit: "ไร่",    fmt: 0 },
   street_flood: { label: "น้ำท่วมขัง กทม.",      unit: "ซม.",    fmt: 0 },
   rain_forecast:{ label: "พยากรณ์ฝน",           unit: "มม./ชม.", fmt: 1 },
+  earthquake:   { label: "แผ่นดินไหว",          unit: "แมกนิจูด", fmt: 1 },
 };
 // สถานะใช้สีสถานะ + ไอคอน + ข้อความเสมอ (ไม่สื่อด้วยสีอย่างเดียว)
 const STATUS = {
@@ -274,6 +276,7 @@ function statusOf(st, value, rawStatus) {
   switch (st.kind) {
     case "waterlevel": return WL_STATUS[rawStatus] || "neutral";
     case "dam_storage": return value == null ? "neutral" : value >= 100 ? "critical" : value >= 80 ? "serious" : value < 30 ? "warning" : "good";
+    case "earthquake": return value == null ? "neutral" : value >= 5 ? "critical" : value >= 4 ? "serious" : value >= 3 ? "warning" : "neutral";
     case "street_flood": return value == null ? (/ท่วม/.test(rawStatus || "") ? "warning" : "neutral") : value <= 0 ? "good" : value > 20 ? "critical" : value > 10 ? "serious" : "warning";
     default: return null;
   }
@@ -302,7 +305,7 @@ function badge(statusKey) {
 const S = {
   province: "",
   hours: Number(store.get("tf.hours") || 72),
-  layers: new Set(JSON.parse(store.get("tf.layers") || '["waterlevel","rain_surface","dam_storage","flood_area","street_flood","area"]')),
+  layers: new Set(JSON.parse(store.get("tf.layers") || '["waterlevel","rain_surface","dam_storage","flood_area","street_flood","earthquake","area"]')),
   tab: "waterlevel",
   selected: null,
   sort: { key: "value", dir: -1 },
@@ -372,7 +375,7 @@ function renderKpis() {
 let map, tileLayer, groups = {}, markerByKey = {};
 const LAYER_DEFS = [
   ["waterlevel", "ระดับน้ำ"], ["rain_surface", "ฝน 24 ชม. (พื้นที่)"], ["rain_24h", "ฝน 24 ชม. (จุดสถานี)"], ["dam_storage", "เขื่อน"],
-  ["flood_area", "พื้นที่ท่วม"], ["street_flood", "ท่วมขัง กทม."], ["area", "ระบายสีรายจังหวัด/ตำบล"],
+  ["flood_area", "พื้นที่ท่วม"], ["street_flood", "ท่วมขัง กทม."], ["earthquake", "แผ่นดินไหว"], ["area", "ระบายสีรายจังหวัด/ตำบล"],
 ];
 const HAS_GEO = !!(DATA && DATA.province_geo);
 
@@ -590,6 +593,10 @@ function initMap() {
   map.getPane("surface").style.pointerEvents = "none";
 }
 function markerStyle(st, value, status) {
+  if (st.kind === "earthquake") { // วงใหญ่ตามขนาด ขอบเข้มให้เห็นชัดบนชั้นอื่น
+    const s = STATUS[status || "neutral"];
+    return { radius: Math.max(5, Math.min(22, 4 + ((value ?? 2) - 1.5) * 3)), color: css("--text-primary"), weight: 1.5, fillColor: css(s.color), fillOpacity: .55 };
+  }
   if (st.kind === "rain_24h") {
     const step = RAIN_STEPS.find(s => (value ?? 0) >= s.min);
     if (!step) return null; // ไม่มีฝน — ไม่ต้องปักหมุด
@@ -609,7 +616,7 @@ function renderMap() {
   for (const g of Object.values(groups)) g.clearLayers();
   const bounds = [];
   // ลำดับวาด: พื้นที่ท่วม → ฝน → เขื่อน → ระดับน้ำ → ท่วมขัง (สถานะวิกฤตอยู่บนสุด)
-  const order = ["flood_area", "rain_24h", "dam_storage", "waterlevel", "street_flood"];
+  const order = ["flood_area", "rain_24h", "dam_storage", "waterlevel", "street_flood", "earthquake"];
   const rank = { neutral: 0, good: 1, warning: 2, serious: 3, critical: 4 };
   for (const kind of order) {
     const list = rows(kind).filter(r => r.st.lat != null && r.st.lon != null)
@@ -811,6 +818,7 @@ function renderTambonDetail(el) {
     <h3>สถานีในตำบล (${inside.length})</h3>
     <div class="stlist">${inside.length ? inside.map(r => stationButton(r)).join("") : '<div class="where">ไม่มีสถานีตรวจวัดในตำบลนี้</div>'}</div>
     ${near.length ? `<h3>${pt ? "สถานีใกล้จุดนี้" : "สถานีใกล้เคียง"} (ไม่เกิน 25 กม.)</h3><div class="stlist">${near.map(x => stationButton(x.r, ` · ${num(x.d, 1)} กม.`)).join("")}</div>` : (c ? "" : '<h3>สถานีใกล้เคียง</h3><div class="where">กำลังโหลดขอบเขตตำบล…</div>')}
+    ${c ? quakeHtml(c.lat, c.lng) : ""}
     <div class="where" style="margin-top:10px">ข้อมูลตามตัวกรองช่วงเวลาปัจจุบัน · คลิกสถานีเพื่อดูกราฟย้อนหลัง</div>
     <div id="helpBox"></div>`;
   el.querySelectorAll(".stlist button[data-k]").forEach(b => b.addEventListener("click", () => select(b.dataset.k)));
@@ -836,6 +844,13 @@ function renderDetail() {
     facts.push(gap >= 0 ? ["ต่ำกว่าตลิ่ง (ม.)", num(gap, 2)] : ["ล้นตลิ่ง (ม.)", "+" + num(-gap, 2)]);
   }
   if (st.kind === "dam_storage" && ex.storage_mcm != null) facts.push(["ปริมาตร (ล้าน ลบ.ม.)", num(ex.storage_mcm, 0)]);
+  if (st.kind === "earthquake") {
+    facts.length = 0;
+    facts.push(["ขนาด" + (ex.mag_type ? ` (${esc(ex.mag_type)})` : ""), num(p[1], 1)]);
+    if (ex.depth_km != null) facts.push(["ความลึก (กม.)", num(ex.depth_km, 0)]);
+    if (ex.felt) facts.push(["คนรายงานว่ารู้สึก", num(ex.felt, 0)]);
+    if (ex.mmi != null) facts.push(["ความรุนแรงที่รู้สึก (MMI)", num(ex.mmi, 1)]);
+  }
   if (st.kind === "street_flood" && ex.highest != null) facts.push(["สูงสุดรอบนี้ (ซม.)", num(ex.highest, 0)]);
   if (st.kind === "street_flood" && ex.start_flood) facts.push(["เริ่มท่วม", fmtTime(ex.start_flood)]);
   if (st.kind === "street_flood" && ex.road) facts.push(["สายทาง", esc(ex.road) + (ex.main_road ? " (สายหลัก)" : "")]);
@@ -843,8 +858,12 @@ function renderDetail() {
   el.innerHTML = `<h2>${esc(st.name || st.id)}</h2>
     <div class="where">${esc(K.label)} · ${esc([st.amp, st.prov].filter(Boolean).join(", ") || "ไม่ระบุพื้นที่")} ${status ? " " + badge(status) : ""}</div>
     <div class="now">${facts.map(([k, v]) => `<div>${k}<strong>${v}</strong></div>`).join("")}</div>
-    <div class="where" style="margin-bottom:6px">${K.label} (${K.unit}) · อัปเดต ${fmtTime(p[0])}</div>
-    <div class="chart" id="detailChart"></div>`;
+    ${st.kind === "earthquake"
+      ? `<div class="where">เกิดเมื่อ ${fmtTime(p[0])} · ศูนย์กลาง ${num(st.lat, 3)}, ${num(st.lon, 3)}${ex.usgs_url ? ` · <a href="${esc(ex.usgs_url)}" target="_blank" rel="noopener">รายละเอียดที่ USGS</a>` : ""}</div>
+         <div class="where" style="margin-top:6px">ข้อมูลจาก USGS — ขนาดอาจถูกปรับแก้ภายหลัง · ข้อมูลทางการของไทย: กรมอุตุนิยมวิทยา (สายด่วน 1182)</div>`
+      : `<div class="where" style="margin-bottom:6px">${K.label} (${K.unit}) · อัปเดต ${fmtTime(p[0])}</div>
+    <div class="chart" id="detailChart"></div>`}`;
+  if (st.kind === "earthquake") return; // เหตุเดียว ไม่มีกราฟย้อนหลัง
   const refs = [];
   if (st.kind === "waterlevel" && ex.min_bank != null) refs.push({ v: ex.min_bank, label: "ตลิ่ง" });
   if (st.kind === "dam_storage") refs.push({ v: 100, label: "ความจุ" });
@@ -867,7 +886,7 @@ function renderTab() {
   list.sort((a, b) => { const A = val(a), B = val(b); return (A > B ? 1 : A < B ? -1 : 0) * dir; });
   const shown = list.slice(0, 300);
   const arrow = k => S.sort.key === k ? (S.sort.dir > 0 ? " ↑" : " ↓") : "";
-  const hasStatus = ["waterlevel", "dam_storage", "street_flood"].includes(S.tab);
+  const hasStatus = ["waterlevel", "dam_storage", "street_flood", "earthquake"].includes(S.tab);
   $("#tabbody").innerHTML = `<div class="toolbar"><input id="q" type="search" placeholder="ค้นหาชื่อสถานี / จังหวัด / อำเภอ" value="${esc(S.q)}" style="flex:1;min-width:200px">
       <span class="count">${num(list.length, 0)} รายการ${list.length > shown.length ? ` (แสดง ${shown.length})` : ""}</span></div>
     ${list.length ? `<div class="tablewrap"><table><thead><tr>
@@ -1064,6 +1083,17 @@ function nearestStations(lat, lon, km = 25, limit = 6, exceptTc = null) {
     .map(r => ({ r, d: haversineKm(lat, lon, r.st.lat, r.st.lon) })).filter(x => x.d <= km)
     .sort((a, b) => a.d - b.d).slice(0, limit);
 }
+// แผ่นดินไหวในช่วงเวลาที่เลือก ภายในรัศมี km จากจุด (ใหม่สุดก่อน)
+function quakesNear(lat, lon, km = 100) {
+  return rows("earthquake").filter(r => r.st.lat != null)
+    .map(r => ({ r, d: haversineKm(lat, lon, r.st.lat, r.st.lon) })).filter(x => x.d <= km)
+    .sort((a, b) => String(b.r.t).localeCompare(String(a.r.t))).slice(0, 5);
+}
+function quakeHtml(lat, lon) {
+  const q = quakesNear(lat, lon);
+  if (!q.length) return "";
+  return `<h3>แผ่นดินไหวในรัศมี 100 กม. (ช่วงเวลาที่เลือก)</h3><div class="stlist">${q.map(x => stationButton(x.r, ` · ${num(x.d, 0)} กม. · ${fmtTime(x.r.t)}`)).join("")}</div>`;
+}
 function renderPointDetail(el) {
   const pt = S.point, est = idwRainAt(pt.lat, pt.lon), near = nearestStations(pt.lat, pt.lon);
   el.innerHTML = `<h2>พิกัด ${esc(fmtLatLon(pt.lat, pt.lon))}</h2>
@@ -1072,6 +1102,7 @@ function renderPointDetail(el) {
     ${est ? `<div class="where">ประมาณจาก ${est.n} สถานีวัดฝนในรัศมี ~40 กม.</div>` : ""}
     <h3>สถานีใกล้จุดนี้ (ไม่เกิน 25 กม.)</h3>
     <div class="stlist">${near.length ? near.map(x => stationButton(x.r, ` · ${num(x.d, 1)} กม.`)).join("") : '<div class="where">ไม่มีสถานีในรัศมี 25 กม.</div>'}</div>
+    ${quakeHtml(pt.lat, pt.lon)}
     <div id="helpBox"></div>`;
   el.querySelectorAll(".stlist button[data-k]").forEach(b => b.addEventListener("click", () => select(b.dataset.k)));
   if (!pt.loading) fillHelp(pt.lat, pt.lon, pt.prov);

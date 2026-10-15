@@ -25,6 +25,7 @@ IIS ─ เสิร์ฟโฟลเดอร์นั้นเป็นไฟ
 api-v3.thaiwater.net                 ThaiWater (ระดับน้ำ ฝน เขื่อน เรดาร์)
 api-gateway.gistda.or.th             GISTDA พื้นที่น้ำท่วมจากดาวเทียม
 floodbangkok.bangkok.go.th           กทม. เซนเซอร์น้ำท่วมขัง
+earthquake.usgs.gov                  แผ่นดินไหว (USGS)
 www.disaster.go.th, www.onwr.go.th   ปภ. / สทนช. (รายงาน/ประกาศ)
 data.tmd.go.th                       กรมอุตุฯ (ถ้ามี token)
 raw.githubusercontent.com            ขอบเขตจังหวัด/ตำบล (ดาวน์โหลดครั้งแรกครั้งเดียว)
